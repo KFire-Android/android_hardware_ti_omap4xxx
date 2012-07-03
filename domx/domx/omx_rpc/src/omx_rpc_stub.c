@@ -64,7 +64,7 @@
 #include <OMX_TI_Common.h>
 #include <timm_osal_interfaces.h>
 
-#include <linux/rpmsg_omx.h>
+#include "linux/rpmsg_omx.h"
 #include "rpmsg_omx_defs.h"
 
 /******************************************************************

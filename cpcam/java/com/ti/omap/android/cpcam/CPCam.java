@@ -83,7 +83,7 @@ public class CPCam {
     private static final int CAMERA_MSG_PREVIEW_METADATA = 0x400;
     private static final int CAMERA_MSG_ALL_MSGS         = 0x4FF;
 
-    private static final int CAMERA_MSG_COMPRESSED_BURST_IMAGE = 0x0800; // dataCallback
+    private static final int CAMERA_MSG_COMPRESSED_BURST_IMAGE = 0x2000; // dataCallback
     private static final int CAMERA_MSG_RAW_BURST = 0x1000;        // dataCallback
 
     private int mNativeContext; // accessed by native methods

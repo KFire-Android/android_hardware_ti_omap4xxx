@@ -5,7 +5,7 @@
 #ifndef RPMSG_OMX_DEFS_H
 #define RPMSG_OMX_DEFS_H
 
-#include <linux/rpmsg_omx.h>
+#include "linux/rpmsg_omx.h"
 
 //AD - from SDO
 /*

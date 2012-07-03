@@ -16,7 +16,7 @@
 #ifndef __RGZ_2D__
 #define __RGZ_2D__
 
-#include <linux/bltsville.h>
+#include "linux/bltsville.h"
 
 /*
  * Maximum number of layers used to generate subregion rectangles in a

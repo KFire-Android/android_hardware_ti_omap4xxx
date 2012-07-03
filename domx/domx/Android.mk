@@ -16,6 +16,7 @@ LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/../mm_osal/inc \
     $(HARDWARE_TI_OMAP4_BASE)/hwc/ \
     $(HARDWARE_TI_OMAP4_BASE)/ion/ \
+    $(HARDWARE_TI_OMAP4_BASE)/include/ \
     system/core/include/cutils \
     $(HARDWARE_TI_OMAP4_BASE)/../../libhardware/include
 

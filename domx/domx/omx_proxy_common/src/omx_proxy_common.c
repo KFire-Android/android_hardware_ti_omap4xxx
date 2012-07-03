@@ -80,7 +80,7 @@
 #include <sys/mman.h>
 #include <sys/eventfd.h>
 #include <fcntl.h>
-#include <linux/rpmsg_omx.h>
+#include "linux/rpmsg_omx.h"
 
 #else
 #include "memmgr.h"

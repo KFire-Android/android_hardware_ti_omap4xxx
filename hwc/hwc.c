@@ -35,11 +35,11 @@
 #include <hardware_legacy/uevent.h>
 #include <png.h>
 
-#include <ui/S3DFormat.h>
+#include "ui/S3DFormat.h"
 #include <edid_parser.h>
 #include <DSSWBHal.h>
 
-#include <linux/bltsville.h>
+#include "linux/bltsville.h"
 
 #define MAX_HWC_LAYERS 32
 
@@ -53,14 +53,14 @@
 #define WIDTH(rect) ((rect).right - (rect).left)
 #define HEIGHT(rect) ((rect).bottom - (rect).top)
 
-#include <video/dsscomp.h>
-#include <video/omap_hwc.h>
+#include "video/dsscomp.h"
+#include "video/omap_hwc.h"
 
 #include "hal_public.h"
 #include "rgz_2d.h"
 
-#include <linux/ion.h>
-#include <linux/omap_ion.h>
+#include "linux/ion.h"
+#include "linux/omap_ion.h"
 #include <ion.h>
 
 #define MAX_HW_OVERLAYS 4

@@ -21,7 +21,8 @@ LOCAL_C_INCLUDES += external/libpng external/zlib \
                     $(LOCAL_PATH)/../ion/
 
 LOCAL_C_INCLUDES += \
-    $(LOCAL_PATH)/../edid/inc
+    $(LOCAL_PATH)/../edid/inc \
+    $(LOCAL_PATH)/../include
 LOCAL_SHARED_LIBRARIES += libedid
 
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../libdsswb

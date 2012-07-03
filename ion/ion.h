@@ -21,8 +21,8 @@
 #ifndef _ION_H_
 #define _ION_H_
 
-#include <linux/ion.h>
-#include <linux/omap_ion.h>
+#include "linux/ion.h"
+#include "linux/omap_ion.h"
 
 #ifdef __cplusplus
 extern "C" {
