@@ -1,3 +1,6 @@
+ifneq ($(TARGET_BOARD_PLATFORM),omap3)
+ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), ))
+
 LOCAL_PATH:= $(call my-dir)
 
 include $(CLEAR_VARS)
@@ -35,3 +38,6 @@ ifeq ($(TARGET_BOARD_PLATFORM),omap4)
 endif
 
 include $(BUILD_HEAPTRACKED_EXECUTABLE)
+
+endif #ifneq ($(TARGET_BOARD_PLATFORM),omap3)
+endif #ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), ))

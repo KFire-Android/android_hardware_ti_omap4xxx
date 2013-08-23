@@ -1,4 +1,6 @@
-ifeq ($(TARGET_BOARD_PLATFORM),omap4)
+ifneq ($(TARGET_BOARD_PLATFORM),omap3)
+ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), ))
+
 
 LOCAL_PATH:= $(call my-dir)
 
@@ -136,5 +138,7 @@ LOCAL_MODULE_TAGS:= optional
 
 include $(BUILD_HEAPTRACKED_SHARED_LIBRARY)
 endif
-endif 
 endif
+
+endif #ifneq ($(TARGET_BOARD_PLATFORM),omap3)
+endif #ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), ))

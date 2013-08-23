@@ -1,4 +1,5 @@
-ifeq ($(TARGET_BOARD_PLATFORM),omap4)
+ifneq ($(TARGET_BOARD_PLATFORM),omap3)
+ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), omap4 omap5 jacinto6))
 
 # only use the generic omap4 modules if no variant is declared
 ifeq ($(strip $(TARGET_BOARD_PLATFORM_VARIANT)),)
@@ -36,4 +37,5 @@ endif
 include $(call first-makefiles-under,$(LOCAL_PATH))
 
 endif # ifeq ($(strip $(TARGET_BOARD_PLATFORM_VARIANT)),)
-endif # ifeq ($(TARGET_BOARD_PLATFORM),omap4)
+endif # ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), omap4 omap5 jacinto6))
+endif # ifneq ($(TARGET_BOARD_PLATFORM),omap3)
