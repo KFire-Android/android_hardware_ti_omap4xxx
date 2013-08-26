@@ -16,7 +16,8 @@
 # all OMAP4 devices.
 
 PRODUCT_PACKAGES += \
-    hwcomposer.jacinto6
+    hwcomposer.jacinto6 \
+    camera.jacinto6
 
 PRODUCT_VENDOR_KERNEL_HEADERS := hardware/ti/omap4xxx/kernel-headers
 
