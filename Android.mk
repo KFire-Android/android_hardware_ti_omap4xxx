@@ -5,6 +5,9 @@ ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), omap4 omap5 j
 ifeq ($(strip $(TARGET_BOARD_PLATFORM_VARIANT)),)
 
 LOCAL_PATH:= $(call my-dir)
+
+include $(LOCAL_PATH)/android-api.mk
+
 HARDWARE_TI_OMAP4_BASE:= $(LOCAL_PATH)
 OMAP4_DEBUG_MEMLEAK:= false
 
@@ -36,6 +39,9 @@ endif
 
 include $(call first-makefiles-under,$(LOCAL_PATH))
 
+$(clear-android-api-vars)
+
 endif # ifeq ($(strip $(TARGET_BOARD_PLATFORM_VARIANT)),)
 endif # ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), omap4 omap5 jacinto6))
 endif # ifneq ($(TARGET_BOARD_PLATFORM),omap3)
+
