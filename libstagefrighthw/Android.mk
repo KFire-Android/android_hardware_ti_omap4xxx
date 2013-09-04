@@ -1,5 +1,3 @@
-ifeq ($(TARGET_BOARD_PLATFORM),omap4)
-
 LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
@@ -22,4 +20,3 @@ LOCAL_MODULE := libstagefrighthw
 
 include $(BUILD_HEAPTRACKED_SHARED_LIBRARY)
 
-endif
