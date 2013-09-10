@@ -61,7 +61,7 @@ OMX_ERRORTYPE OMXH264VD_Init(OMX_HANDLETYPE hComponent)
 
     /*! Allocate Memory for Static Parameter */
     pVidDecComp->pDecStaticParams
-                    = (IVIDDEC3_Params *) OSAL_Malloc(sizeof(IH264VDEC_Params));
+                    = (IVIDDEC3_Params *) memplugin_alloc(sizeof(IH264VDEC_Params), 1, MEM_CARVEOUT, 0, 0);
     OMX_CHECK(pVidDecComp->pDecStaticParams != NULL, OMX_ErrorInsufficientResources);
     OSAL_Memset(pVidDecComp->pDecStaticParams, 0x0, sizeof(IH264VDEC_Params));
 
@@ -73,26 +73,26 @@ OMX_ERRORTYPE OMXH264VD_Init(OMX_HANDLETYPE hComponent)
 
     /*! Allocate Memory for Dynamic Parameter */
     pVidDecComp->pDecDynParams
-    = (IVIDDEC3_DynamicParams *) OSAL_Malloc(sizeof(IH264VDEC_DynamicParams));
+    = (IVIDDEC3_DynamicParams *) memplugin_alloc(sizeof(IH264VDEC_DynamicParams), 1, MEM_CARVEOUT, 0, 0);
     OMX_CHECK(pVidDecComp->pDecDynParams != NULL, OMX_ErrorInsufficientResources);
     OSAL_Memset(pVidDecComp->pDecDynParams, 0x0, sizeof(IH264VDEC_DynamicParams));
 
     /*! Allocate Memory for Status Structure */
     pVidDecComp->pDecStatus
-                = (IVIDDEC3_Status *) OSAL_Malloc(sizeof(IH264VDEC_Status));
+                = (IVIDDEC3_Status *) memplugin_alloc(sizeof(IH264VDEC_Status), 1, MEM_CARVEOUT, 0, 0);
     OMX_CHECK(pVidDecComp->pDecStatus != NULL, OMX_ErrorInsufficientResources);
     OSAL_Memset(pVidDecComp->pDecStatus, 0x0, sizeof(IH264VDEC_Status));
     ((IH264VDEC_Status *)pVidDecComp->pDecStatus)->spsMaxRefFrames = 1;
 
     /*! Allocate Memory for Input Arguments */
     pVidDecComp->pDecInArgs
-    = (IVIDDEC3_InArgs *) OSAL_Malloc(sizeof(IH264VDEC_InArgs));
+    = (IVIDDEC3_InArgs *) memplugin_alloc(sizeof(IH264VDEC_InArgs), 1, MEM_CARVEOUT, 0, 0);
     OMX_CHECK(pVidDecComp->pDecInArgs != NULL, OMX_ErrorInsufficientResources);
     OSAL_Memset(pVidDecComp->pDecInArgs, 0x0, sizeof(IH264VDEC_InArgs));
 
     /*! Allocate Memory for Output Arguments */
     pVidDecComp->pDecOutArgs
-                    = (IVIDDEC3_OutArgs *) OSAL_Malloc(sizeof(IH264VDEC_OutArgs));
+                    = (IVIDDEC3_OutArgs *) memplugin_alloc(sizeof(IH264VDEC_OutArgs), 1, MEM_CARVEOUT, 0, 0);
     OMX_CHECK(pVidDecComp->pDecOutArgs != NULL, OMX_ErrorInsufficientResources);
     OSAL_Memset(pVidDecComp->pDecOutArgs, 0x0, sizeof(IH264VDEC_OutArgs));
 
@@ -270,23 +270,23 @@ void OMXH264VD_DeInit(OMX_HANDLETYPE hComponent)
     pVidDecComp  = (OMXVidDecComp *)pHandle->pComponentPrivate;
     /*! Delete all the memory which was allocated during init of decoder */
     if( pVidDecComp->pDecStaticParams ) {
-        OSAL_Free(pVidDecComp->pDecStaticParams);
+        memplugin_free(pVidDecComp->pDecStaticParams);
         pVidDecComp->pDecStaticParams = NULL;
     }
     if( pVidDecComp->pDecDynParams ) {
-        OSAL_Free(pVidDecComp->pDecDynParams);
+        memplugin_free(pVidDecComp->pDecDynParams);
         pVidDecComp->pDecDynParams = NULL;
     }
     if( pVidDecComp->pDecStatus ) {
-        OSAL_Free(pVidDecComp->pDecStatus);
+        memplugin_free(pVidDecComp->pDecStatus);
         pVidDecComp->pDecStatus = NULL;
     }
     if( pVidDecComp->pDecInArgs ) {
-        OSAL_Free(pVidDecComp->pDecInArgs);
+        memplugin_free(pVidDecComp->pDecInArgs);
         pVidDecComp->pDecInArgs = NULL;
     }
     if( pVidDecComp->pDecOutArgs ) {
-        OSAL_Free(pVidDecComp->pDecOutArgs);
+        memplugin_free(pVidDecComp->pDecOutArgs);
         pVidDecComp->pDecOutArgs = NULL;
     }
     if( pVidDecComp->pCodecSpecific ) {

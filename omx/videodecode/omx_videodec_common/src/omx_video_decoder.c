@@ -137,6 +137,14 @@ OMX_ERRORTYPE OMXVidDec_ComponentInit(OMX_HANDLETYPE hComponent)
     OSAL_CreatePipe(&(pVidDecComp->pTimeStampStoragePipe), MAX_REF_FRAMES * sizeof(OMX_TICKS),
                     sizeof(OMX_TICKS), 1);
 
+    pVidDecComp->tInBufDesc = (XDM2_BufDesc*)memplugin_alloc(sizeof(XDM2_BufDesc), 1, MEM_CARVEOUT, 0, 0);
+    OMX_CHECK(pVidDecComp->tInBufDesc != NULL, OMX_ErrorInsufficientResources);
+    OSAL_Memset(pVidDecComp->tInBufDesc, 0x0, sizeof(XDM2_BufDesc));
+
+    pVidDecComp->tOutBufDesc = (XDM2_BufDesc*)memplugin_alloc(sizeof(XDM2_BufDesc), 1, MEM_CARVEOUT, 0, 0);
+    OMX_CHECK(pVidDecComp->tOutBufDesc != NULL, OMX_ErrorInsufficientResources);
+    OSAL_Memset(pVidDecComp->tOutBufDesc, 0x0, sizeof(XDM2_BufDesc));
+
 EXIT:
     if( eError != OMX_ErrorNone ) {
         if( pHandle != NULL ) {
@@ -997,8 +1005,8 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
                                                                 (OMX_PTR*)(&pOutBufHeader));
             }
         }
-        pOutBufDescPtr = &(pVidDecComp->tOutBufDesc);
-        pInBufDescPtr = &(pVidDecComp->tInBufDesc);
+        pOutBufDescPtr = pVidDecComp->tOutBufDesc;
+        pInBufDescPtr = pVidDecComp->tInBufDesc;
         if( pVidDecComp->sCodecConfig.sBuffer != NULL &&
                 pVidDecComp->pDecDynParams->decodeHeader != pVidDecComp->nDecoderMode ) {
                 pVidDecComp->pDecDynParams->decodeHeader = pVidDecComp->nDecoderMode;
@@ -1012,13 +1020,14 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             }
             OMX_CHECK(eError == OMX_ErrorNone, eError);
         }
-        pVidDecComp->tInBufDesc.numBufs = 1;
+        pInBufDescPtr->numBufs = 1;
         if( pInBufHeader != NULL && pVidDecComp->nOutbufInUseFlag == 1 ) {
             pVidDecComp->pDecInArgs->numBytes = pInBufHeader->nFilledLen - pInBufHeader->nOffset;
             //Sending the same input ID for second field
             pVidDecComp->pDecInArgs->inputID = (OMX_S32) pOutBufHeader;
             if(((IVIDDEC3_Params *)(pVidDecComp->pDecStaticParams))->inputDataMode == IVIDEO_ENTIREFRAME ) {
-                pInBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pInBufHeader->pPlatformPrivate)->dma_buf_fd[0]);
+                P2H(pInBufHeader->pBuffer)->offset = pInBufHeader->nOffset;
+                pInBufDescPtr->descs[0].buf = (XDAS_Int8*)pInBufHeader->pBuffer;
                 pInBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
                 pInBufDescPtr->descs[0].bufSize.bytes = pInBufHeader->nFilledLen;
             }
@@ -1026,9 +1035,9 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
         } else if( pVidDecComp->pDecDynParams->decodeHeader == pVidDecComp->nDecoderMode ) {
             pVidDecComp->pDecInArgs->numBytes = pVidDecComp->sCodecConfig.sBuffer->size;
             pVidDecComp->pDecInArgs->inputID = 1;
-            pVidDecComp->tInBufDesc.descs[0].buf = (XDAS_Int8*)pVidDecComp->sCodecConfig.sBuffer->dma_buf_fd;
-            pVidDecComp->tInBufDesc.descs[0].memType = XDM_MEMTYPE_RAW;
-            pVidDecComp->tInBufDesc.descs[0].bufSize.bytes = pVidDecComp->sCodecConfig.sBuffer->size;
+            pInBufDescPtr->descs[0].buf = (XDAS_Int8*)H2P(pVidDecComp->sCodecConfig.sBuffer);
+            pInBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
+            pInBufDescPtr->descs[0].bufSize.bytes = pVidDecComp->sCodecConfig.sBuffer->size;
             pOutBufDescPtr->numBufs = 0;
         } else if( pInBufHeader != NULL && pVidDecComp->pDecDynParams->decodeHeader == XDM_DECODE_AU ) {
             // In case EOS and Number of Input bytes=0. Flush Decoder and exit
@@ -1063,13 +1072,14 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             pVidDecComp->pDecInArgs->inputID = (OMX_S32) pOutBufHeader;
             if(((IVIDDEC3_Params *)(pVidDecComp->pDecStaticParams))->inputDataMode == IVIDEO_ENTIREFRAME ) {
                 /* Fill Input Buffer Descriptor */
-                pInBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pInBufHeader->pPlatformPrivate)->dma_buf_fd[0]);
+                P2H(pInBufHeader->pBuffer)->offset = pInBufHeader->nOffset;
+                pInBufDescPtr->descs[0].buf = (XDAS_Int8*)(pInBufHeader->pBuffer);
                 pInBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
                 pInBufDescPtr->descs[0].bufSize.bytes = pInBufHeader->nFilledLen - pInBufHeader->nOffset;
             }
             /* Initialize Number of Buffers for input and output */
-            pVidDecComp->tInBufDesc.numBufs = 1;
-            pVidDecComp->tOutBufDesc.numBufs = 2;
+            pInBufDescPtr->numBufs = 1;
+            pOutBufDescPtr->numBufs = 2;
 
             /* Fill Output Buffer Descriptor */
             nOutbufferSize = pOutputPortDef->nBufferSize;
@@ -1100,7 +1110,7 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
         if(status == XDM_EFAIL ){
             OSAL_ErrorTrace("\n Process function returned an Error...  \n");
             OSAL_ErrorTrace("Codec Extended - 0x%x", pVidDecComp->pDecOutArgs->extendedError);
-            OSAL_ErrorTrace("Input Buffer Size provided to codec is : %d", pVidDecComp->tInBufDesc.descs[0].bufSize.bytes);
+            OSAL_ErrorTrace("Input Buffer Size provided to codec is : %d", pInBufDescPtr->descs[0].bufSize.bytes);
             OSAL_ErrorTrace("Frame count is : %d", pVidDecComp->nFrameCounter + 1);
             OSAL_ErrorTrace("Bytes consumed - %d", pVidDecComp->pDecOutArgs->bytesConsumed);
 
@@ -1403,6 +1413,16 @@ OMX_ERRORTYPE OMXVidDec_ComponentDeinit(OMX_HANDLETYPE hComponent)
     if( pVidDecComp->sBase.pVideoPortParams ) {
         OSAL_Free(pVidDecComp->sBase.pVideoPortParams);
         pVidDecComp->sBase.pVideoPortParams = NULL;
+    }
+
+    if (pVidDecComp->tInBufDesc) {
+        memplugin_free(pVidDecComp->tInBufDesc);
+        pVidDecComp->tInBufDesc = NULL;
+    }
+
+    if (pVidDecComp->tOutBufDesc) {
+        memplugin_free(pVidDecComp->tOutBufDesc);
+        pVidDecComp->tOutBufDesc = NULL;
     }
 
     // Call to base Component De-init routine

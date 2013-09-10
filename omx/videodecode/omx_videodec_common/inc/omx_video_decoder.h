@@ -65,8 +65,8 @@ typedef struct OMXVideoDecoderComponent {
     IVIDDEC3_Status                 *pDecStatus;              /*! Pointer to Decoder Status struct */
     IVIDDEC3_InArgs                 *pDecInArgs;              /*! Pointer to Decoder InArgs */
     IVIDDEC3_OutArgs                *pDecOutArgs;             /*! Pointer to Decoder OutArgs */
-    XDM2_BufDesc                    tInBufDesc;
-    XDM2_BufDesc                    tOutBufDesc;
+    XDM2_BufDesc                    *tInBufDesc;
+    XDM2_BufDesc                    *tOutBufDesc;
 
     /* OMX params */
     OMX_VIDEO_PARAM_PORTFORMATTYPE  tVideoParams[OMX_VIDDEC_NUM_OF_PORTS];
