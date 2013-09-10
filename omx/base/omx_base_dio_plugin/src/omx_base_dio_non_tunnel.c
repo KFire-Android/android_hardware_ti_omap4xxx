@@ -195,7 +195,7 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Open (OMX_HANDLETYPE handle,
         nNumComponentBuffers;
         if( nLocalComBuffers != 1 && pBaseComp->
                 pPorts[nPortIndex - nStartPortNumber]->sProps.eBufMemoryType !=
-                MEM_TILER_2D ) {
+                MEM_TILER8_2D ) {
             //For non 2D buffers multiple component buffers not supported
             OMX_CHECK(OMX_FALSE, OMX_ErrorBadParameter);
         }
@@ -212,13 +212,10 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Open (OMX_HANDLETYPE handle,
                             (OMXBase_BufHdrPvtData *)(pContext->pPlatformPrivatePool) + i;
 
         if( pPort->bIsBufferAllocator) {
-            BuffAttribs *buffData = &(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sBuffer[0]);
-            buffData->memory_region = MEM_CARVEOUT;
-            buffData->len = pParams->nBufSize;
-            buffData->align = 0x00;
-            buffData->flags = 0x00;
-            tStatus = memplugin_alloc((void*)buffData);
-            pPort->pBufferlist[i]->pBuffer = buffData->ptr;
+            pPort->pBufferlist[i]->pBuffer = memplugin_alloc(pParams->nBufSize, 1, MEM_CARVEOUT, 0, 0);
+
+            ((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[0] =
+                                            memplugin_share(pPort->pBufferlist[i]->pBuffer);
             if( nLocalComBuffers == 2 ) {
                 OMX_CHECK(OMX_FALSE, OMX_ErrorNotImplemented);
             }
@@ -279,11 +276,8 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Close(OMX_HANDLETYPE handle)
                         /*Caling free on the main buffer*/
                         pTmpBuffer = pPort->pBufferlist[i]->pBuffer;
                         if( pTmpBuffer ) {
-                            BuffAttribs *buffData = &(((OMXBase_BufHdrPvtData*)pPort->pBufferlist[i]->pPlatformPrivate)->sBuffer[0]);
-                            tStatus = memplugin_free((void*)buffData);
-                            if( tStatus != OSAL_ErrNone ) {
-                                tStatus = OMX_ErrorUndefined;
-                            }
+                            MemHeader *h = P2H(pTmpBuffer);
+                            memplugin_free((void*)pTmpBuffer);
                         }
                         if( nCompBufs == 2 ) {
                             OMX_CHECK(OMX_FALSE, OMX_ErrorNotImplemented);
@@ -485,7 +479,7 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Control (OMX_HANDLETYPE handle,
     OMXBaseComp_Pvt     *pBaseCompPvt = NULL;
     OMX_CALLBACKTYPE    *pAppCallbacks = NULL;
     OMX_BUFFERHEADERTYPE    *pBuffHeader = NULL;
-    BuffAttribs         *pAttrDesc = NULL;
+    MemHeader           *pAttrDesc = NULL;
     uint32_t            elementsInpipe = 0;
     uint32_t            actualSize = 0;
 
@@ -548,18 +542,18 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Control (OMX_HANDLETYPE handle,
                                         sizeof(pBuffHeader), OSAL_SUSPEND);
                 goto EXIT;
             }
-            pAttrDesc = &((OMXBase_CodecConfigBuf*)pParams)->sBuffer;
-            if( pAttrDesc->len < pBuffHeader->nFilledLen ) {
+            pAttrDesc = ((OMXBase_CodecConfigBuf*)pParams)->sBuffer;
+            if( pAttrDesc->size < pBuffHeader->nFilledLen ) {
                 tStatus = OSAL_WriteToFrontOfPipe(pContext->pPipeHandle,
                                             &pBuffHeader, sizeof(pBuffHeader), OSAL_SUSPEND);
-                pAttrDesc->len = pBuffHeader->nFilledLen;
+                pAttrDesc->size = pBuffHeader->nFilledLen;
 
                 eError = (OMX_ERRORTYPE)OMX_TI_WarningInsufficientAttributeSize;
                 goto EXIT;
             }
-            pAttrDesc->len = pBuffHeader->nFilledLen;
-            OSAL_Memcpy(pAttrDesc->ptr, pBuffHeader->pBuffer + pBuffHeader->nOffset,
-                                            pAttrDesc->len);
+            pAttrDesc->size = pBuffHeader->nFilledLen;
+            OSAL_Memcpy(H2P(pAttrDesc), pBuffHeader->pBuffer + pBuffHeader->nOffset,
+                                            pAttrDesc->size);
 
             /*Send the buffer back*/
             pBuffHeader->nFlags &= (~OMX_BUFFERFLAG_CODECCONFIG);
@@ -585,16 +579,16 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Control (OMX_HANDLETYPE handle,
             OMX_CHECK(OSAL_ErrNone == tStatus, OMX_ErrorUndefined);
 
             pBuffHeader->nFlags |= OMX_BUFFERFLAG_CODECCONFIG;
-            pAttrDesc = &((OMXBase_CodecConfigBuf *)pParams)->sBuffer;
-            if( pBuffHeader->nAllocLen < pAttrDesc->len ) {
+            pAttrDesc = ((OMXBase_CodecConfigBuf *)pParams)->sBuffer;
+            if( pBuffHeader->nAllocLen < pAttrDesc->size ) {
                 OSAL_ErrorTrace("Cannot send attribute data, size is too large");
                 tStatus = OSAL_WriteToFrontOfPipe(pContext->pPipeHandle,
                                             &pBuffHeader, sizeof(pBuffHeader), OSAL_SUSPEND);
                 eError = OMX_ErrorInsufficientResources;
                 goto EXIT;
             }
-            pBuffHeader->nFilledLen = pAttrDesc->len;
-            OSAL_Memcpy(pBuffHeader->pBuffer, pAttrDesc->ptr, pAttrDesc->len);
+            pBuffHeader->nFilledLen = pAttrDesc->size;
+            OSAL_Memcpy(pBuffHeader->pBuffer, H2P(pAttrDesc), pAttrDesc->size);
             /*Send the buffer*/
             if( OMX_DirInput == pPort->sPortDef.eDir ) {
                 eError = pAppCallbacks->EmptyBufferDone(pComp,

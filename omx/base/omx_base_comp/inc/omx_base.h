@@ -48,11 +48,11 @@ extern "C" {
 /** Platform private buffer header
  */
 typedef struct OMXBase_BufHdrPrivateData {
-    BuffAttribs  sBuffer[MAX_PLANES_PER_BUFFER];
+    int32_t  dma_buf_fd[MAX_PLANES_PER_BUFFER];
 }OMXBase_BufHdrPvtData;
 
 typedef struct OMXBase_CodecConfigBuffer {
-    BuffAttribs sBuffer;
+    MemHeader *sBuffer;
 } OMXBase_CodecConfigBuf;
 
 /** Port properties.

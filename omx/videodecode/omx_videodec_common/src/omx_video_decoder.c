@@ -29,16 +29,6 @@
 
 #define MAX_REF_FRAMES 16
 
-#define VIDDEC_INIT_BUFF_PARAMS(_buffer_) { \
-       (_buffer_)->flags = 0x00; \
-       (_buffer_)->align = 0x00; \
-       (_buffer_)->memory_region = MEM_CARVEOUT; \
-       (_buffer_)->ptr = NULL; \
-       (_buffer_)->share_fd = -1; \
-       (_buffer_)->map_fd = -1; \
-       (_buffer_)->handle = NULL;\
-}
-
 /*
 * Component Init
 */
@@ -142,7 +132,6 @@ OMX_ERRORTYPE OMXVidDec_ComponentInit(OMX_HANDLETYPE hComponent)
     pVidDecComp->bUsePortReconfigForPadding = OMX_TRUE;
     pVidDecComp->bSupportDecodeOrderTimeStamp = OMX_FALSE;
     pVidDecComp->bSupportSkipGreyOutputFrames = OMX_TRUE;
-    VIDDEC_INIT_BUFF_PARAMS(&pVidDecComp->sCodecConfig.sBuffer);
 
     /*Optimize this pipe to be created only if decode timestamps is requested. */
     OSAL_CreatePipe(&(pVidDecComp->pTimeStampStoragePipe), MAX_REF_FRAMES * sizeof(OMX_TICKS),
@@ -584,8 +573,8 @@ OMX_ERRORTYPE OMXVidDec_XlateBuffHandle(OMX_HANDLETYPE hComponent,
         tRetVal = memplugin_xlate(alloc_fd, share_fds);
         OMX_CHECK(tRetVal == 0, OMX_ErrorInsufficientResources);
 
-        ((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->sBuffer[0].share_fd = share_fds[0];
-        ((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->sBuffer[1].share_fd = share_fds[1];
+        ((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->dma_buf_fd[0] = share_fds[0];
+        ((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->dma_buf_fd[1] = share_fds[1];
     }
 
 EXIT:
@@ -919,7 +908,6 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
 
     // Loop until input or output buffers are exhausted
     while((nInMsgCount > 0) && (nOutMsgCount > 0)) {
-        went_thru_loop = OMX_TRUE;
         // Only if Cur-State is Execute proceed.
         if((pVidDecComp->sBase.tCurState != OMX_StateExecuting) ||
                 (pVidDecComp->sBase.pPorts[OMX_VIDDEC_OUTPUT_PORT]->sPortDef.bEnabled == OMX_FALSE) ||
@@ -942,24 +930,23 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
         // It can be freed only if mentioned in freeBufId[] field.
         Buffer_locked = 1;
         ii=0;
-        if( nNewInBufferRequired == 0 && pVidDecComp->sCodecConfig.sBuffer.ptr == NULL ) {
+        went_thru_loop = OMX_TRUE;
+        if( nNewInBufferRequired == 0 && pVidDecComp->sCodecConfig.sBuffer == NULL ) {
             duped_IPbuffer = OMX_FALSE;
             //! Get Input and Output Buffer header from Queue
             eError = pVidDecComp->sBase.pPvtData->fpDioDequeue(hComponent, OMX_VIDDEC_INPUT_PORT,
                                                                 (OMX_PTR*)(&pInBufHeader));
             if( eError == OMX_TI_WarningAttributePending ) {
-                VIDDEC_INIT_BUFF_PARAMS(&(pVidDecComp->sCodecConfig.sBuffer));
-                pVidDecComp->sCodecConfig.sBuffer.len = 2;
-                eError = memplugin_alloc((void*)&(pVidDecComp->sCodecConfig.sBuffer));
-                OMX_CHECK(pVidDecComp->sCodecConfig.sBuffer.ptr != NULL, OMX_ErrorInsufficientResources);
+                pVidDecComp->sCodecConfig.sBuffer = P2H(memplugin_alloc(2, 1, MEM_CARVEOUT, 0, 0));
+                OMX_CHECK(pVidDecComp->sCodecConfig.sBuffer != NULL, OMX_ErrorInsufficientResources);
                 eError = pVidDecComp->sBase.pPvtData->fpDioControl(hComponent, OMX_VIDDEC_INPUT_PORT,
                                                 OMX_DIO_CtrlCmd_GetCtrlAttribute, (OMX_PTR)&(pVidDecComp->sCodecConfig));
                 if( eError == OMX_TI_WarningInsufficientAttributeSize ) {
                     /*Allocate the data pointer again with correct size*/
-                    memplugin_free((void*)&(pVidDecComp->sCodecConfig.sBuffer));
-                    VIDDEC_INIT_BUFF_PARAMS(&(pVidDecComp->sCodecConfig.sBuffer));
-                    eError = memplugin_alloc((void*)&(pVidDecComp->sCodecConfig.sBuffer));
-                    OMX_CHECK(pVidDecComp->sCodecConfig.sBuffer.ptr != NULL, OMX_ErrorInsufficientResources);
+                    uint32_t new_size = pVidDecComp->sCodecConfig.sBuffer->size;
+                    memplugin_free((void*)H2P(pVidDecComp->sCodecConfig.sBuffer));
+                    pVidDecComp->sCodecConfig.sBuffer = P2H(memplugin_alloc(new_size, 1, MEM_CARVEOUT, 0, 0));
+                    OMX_CHECK(pVidDecComp->sCodecConfig.sBuffer != NULL, OMX_ErrorInsufficientResources);
                     eError = pVidDecComp->sBase.pPvtData->fpDioControl(hComponent, OMX_VIDDEC_INPUT_PORT,
                                                 OMX_DIO_CtrlCmd_GetCtrlAttribute, (OMX_PTR)&(pVidDecComp->sCodecConfig));
                     if( eError != OMX_ErrorNone ) {
@@ -1012,7 +999,7 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
         }
         pOutBufDescPtr = &(pVidDecComp->tOutBufDesc);
         pInBufDescPtr = &(pVidDecComp->tInBufDesc);
-        if( pVidDecComp->sCodecConfig.sBuffer.ptr != NULL &&
+        if( pVidDecComp->sCodecConfig.sBuffer != NULL &&
                 pVidDecComp->pDecDynParams->decodeHeader != pVidDecComp->nDecoderMode ) {
                 pVidDecComp->pDecDynParams->decodeHeader = pVidDecComp->nDecoderMode;
             // Call the Decoder Control function
@@ -1031,17 +1018,17 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             //Sending the same input ID for second field
             pVidDecComp->pDecInArgs->inputID = (OMX_S32) pOutBufHeader;
             if(((IVIDDEC3_Params *)(pVidDecComp->pDecStaticParams))->inputDataMode == IVIDEO_ENTIREFRAME ) {
-                pInBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pInBufHeader->pPlatformPrivate)->sBuffer[0].share_fd);
+                pInBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pInBufHeader->pPlatformPrivate)->dma_buf_fd[0]);
                 pInBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
                 pInBufDescPtr->descs[0].bufSize.bytes = pInBufHeader->nFilledLen;
             }
             pOutBufDescPtr->numBufs = 0;
         } else if( pVidDecComp->pDecDynParams->decodeHeader == pVidDecComp->nDecoderMode ) {
-            pVidDecComp->pDecInArgs->numBytes = pVidDecComp->sCodecConfig.sBuffer.len;
+            pVidDecComp->pDecInArgs->numBytes = pVidDecComp->sCodecConfig.sBuffer->size;
             pVidDecComp->pDecInArgs->inputID = 1;
-            pVidDecComp->tInBufDesc.descs[0].buf = (XDAS_Int8*) pVidDecComp->sCodecConfig.sBuffer.share_fd;
+            pVidDecComp->tInBufDesc.descs[0].buf = (XDAS_Int8*)pVidDecComp->sCodecConfig.sBuffer->dma_buf_fd;
             pVidDecComp->tInBufDesc.descs[0].memType = XDM_MEMTYPE_RAW;
-            pVidDecComp->tInBufDesc.descs[0].bufSize.bytes = pVidDecComp->sCodecConfig.sBuffer.len;
+            pVidDecComp->tInBufDesc.descs[0].bufSize.bytes = pVidDecComp->sCodecConfig.sBuffer->size;
             pOutBufDescPtr->numBufs = 0;
         } else if( pInBufHeader != NULL && pVidDecComp->pDecDynParams->decodeHeader == XDM_DECODE_AU ) {
             // In case EOS and Number of Input bytes=0. Flush Decoder and exit
@@ -1076,7 +1063,7 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             pVidDecComp->pDecInArgs->inputID = (OMX_S32) pOutBufHeader;
             if(((IVIDDEC3_Params *)(pVidDecComp->pDecStaticParams))->inputDataMode == IVIDEO_ENTIREFRAME ) {
                 /* Fill Input Buffer Descriptor */
-                pInBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pInBufHeader->pPlatformPrivate)->sBuffer[0].share_fd);
+                pInBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pInBufHeader->pPlatformPrivate)->dma_buf_fd[0]);
                 pInBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
                 pInBufDescPtr->descs[0].bufSize.bytes = pInBufHeader->nFilledLen - pInBufHeader->nOffset;
             }
@@ -1088,11 +1075,11 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             nOutbufferSize = pOutputPortDef->nBufferSize;
             pOutBufDescPtr->descs[0].bufSize.tileMem.width  = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth;
             pOutBufDescPtr->descs[0].bufSize.tileMem.height = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight;
-            pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sBuffer[0].share_fd);
+            pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->dma_buf_fd[0]);
             pOutBufDescPtr->descs[0].memType = XDM_MEMTYPE_TILED8;
             pOutBufDescPtr->descs[1].bufSize.tileMem.width =pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth;
             pOutBufDescPtr->descs[1].bufSize.tileMem.height = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight / 2;
-            pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sBuffer[1].share_fd);
+            pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->dma_buf_fd[1]);
             pOutBufDescPtr->descs[1].memType = XDM_MEMTYPE_TILED16;
             pOutBufHeader->nTimeStamp = pInBufHeader->nTimeStamp;
             if( pVidDecComp->bSupportDecodeOrderTimeStamp == OMX_TRUE && pVidDecComp->bInputBufferCancelled == 0 ) {
@@ -1132,9 +1119,9 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             eError = OMXVidDec_HandleFirstFrame(hComponent, NULL);
             //we have to loop once again if we duplicated any input buffer
             if(duped_IPbuffer && nInMsgCount) {
-                if( pVidDecComp && pVidDecComp->sCodecConfig.sBuffer.ptr && pVidDecComp->nOutPortReconfigRequired == 0 && went_thru_loop) {
-                    memplugin_free((void*)&(pVidDecComp->sCodecConfig.sBuffer));
-                    VIDDEC_INIT_BUFF_PARAMS(&(pVidDecComp->sCodecConfig.sBuffer));
+                if( pVidDecComp && pVidDecComp->sCodecConfig.sBuffer && pVidDecComp->nOutPortReconfigRequired == 0 && went_thru_loop) {
+                    memplugin_free((void*)H2P(pVidDecComp->sCodecConfig.sBuffer));
+                    pVidDecComp->sCodecConfig.sBuffer = NULL;
             }
             continue;
         }
@@ -1376,9 +1363,9 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
     } // End of while loop for input and output buffers
 
 EXIT:
-    if( pVidDecComp && pVidDecComp->sCodecConfig.sBuffer.ptr && pVidDecComp->nOutPortReconfigRequired == 0 && went_thru_loop) {
-        memplugin_free((void*)&(pVidDecComp->sCodecConfig.sBuffer));
-        VIDDEC_INIT_BUFF_PARAMS(&(pVidDecComp->sCodecConfig.sBuffer));
+    if( pVidDecComp && pVidDecComp->sCodecConfig.sBuffer && pVidDecComp->nOutPortReconfigRequired == 0 && went_thru_loop) {
+        memplugin_free((void*)H2P(pVidDecComp->sCodecConfig.sBuffer));
+        pVidDecComp->sCodecConfig.sBuffer = NULL;
         }
     return (eError);
 }

@@ -35,13 +35,20 @@
 * or IH264DEC_Params
 */
 typedef struct MemHeader {
-    int   size;
-    void *ptr;
+    uint32_t size;
+    void    *ptr;       /*vptr for the processor access */
+    int32_t dma_buf_fd; /* shared fd */
+    uint32_t region;    /* mem region the buffer allocated from */
+    /* internal meta data for the buffer */
+    uint32_t offset;    /* offset for the actual data with in the buffer */
+    int32_t map_fd;     /* mmapped fd */
+    void *handle;       /* custom handle */
 } MemHeader;
 
 typedef enum MemRegion {
     MEM_TILER_1D,
-    MEM_TILER_2D,
+    MEM_TILER8_2D,
+    MEM_TILER16_2D,
     MEM_CARVEOUT,
     MEM_GRALLOC,
     MEM_VIRTUAL,
@@ -69,22 +76,11 @@ typedef enum MemErrorStatus {
     MEM_ERR_OUT_OF_CARVEOUT = -3
 } MEM_ERROR;
 
-
-typedef struct BufferAttributes {
-    MemRegion memory_region;
-    size_t len;
-    size_t align;
-    unsigned int flags;
-    void *ptr;
-    int share_fd;
-    int map_fd;
-    void *handle;
-} BuffAttribs;
-
 int memplugin_open();
 int memplugin_close();
-int memplugin_alloc(BuffAttribs *buffer);
-int memplugin_free(BuffAttribs *buffer);
+void *memplugin_alloc(int sz, int height, MemRegion region, int align, int flags);
+void memplugin_free(void *ptr);
+int32_t memplugin_share(void *ptr);
 int memplugin_xlate(int alloc_fd, int* share_fd);
 
 #endif  /* __MEMPLUGIN_H__ */

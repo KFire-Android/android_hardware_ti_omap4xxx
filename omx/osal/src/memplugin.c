@@ -41,84 +41,99 @@ int memplugin_open()
 
 int memplugin_close()
 {
-    return ion_close(ion_fd);
+    int ret = ion_close(ion_fd);
+    ion_fd = -1;
+    return ret;
 }
 
-int memplugin_alloc(BuffAttribs *buffer)
+void *memplugin_alloc(int sz, int height, MemRegion region, int align, int flags)
 {
-    int err = 0;
+    int err = -1;
     uint32_t len = 0;
+    void *handle;
+    void *ptr;
+    int32_t map_fd;
+    int32_t share_fd;
     MemHeader *h;
 
-    if (!buffer) {
-        OSAL_ErrorTrace("memplugin_alloc: Invalid Argument");
-        return -1;
-    }
-
-    switch(buffer->memory_region) {
+    switch(region) {
     case MEM_CARVEOUT:
-        len = buffer->len;
+        len = sz + sizeof (MemHeader);
         len = (len + LINUX_PAGE_SIZE - 1) & ~(LINUX_PAGE_SIZE - 1);
 
-        err = ion_alloc(ion_fd, len, buffer->align, 1 << ION_HEAP_TYPE_CARVEOUT,
-                        buffer->flags, (struct ion_handle **)&buffer->handle);
-        if (err < 0 || !buffer->handle) {
+        err = ion_alloc(ion_fd, len, align, 1 << ION_HEAP_TYPE_CARVEOUT,
+                        flags, (struct ion_handle **)&handle);
+        if (err < 0 || !handle) {
             OSAL_ErrorTrace("ION CARVEOUT MEM ALLOC failed[%d]", err);
-            return -1;
+            return NULL;
         }
-        err = ion_map(ion_fd, buffer->handle, buffer->len,
+
+        err = ion_map(ion_fd, handle, len,
                     PROT_READ | PROT_WRITE,
-                    MAP_SHARED, 0, (unsigned char **)&buffer->ptr, &buffer->map_fd);
+                    MAP_SHARED, 0, (unsigned char **)&ptr, &map_fd);
 
-        if (err || !buffer->ptr) {
+        if (err || !ptr) {
             OSAL_ErrorTrace("ION CARVEOUT MEM MAP failed[%d]", err);
-            return -1;
+            return NULL;
         }
 
-        err = ion_share(ion_fd, buffer->handle, &buffer->share_fd);
-        if (err || buffer->share_fd < 0) {
+        err = ion_share(ion_fd, handle, &share_fd);
+        if (err || share_fd < 0) {
             OSAL_ErrorTrace("ION CARVEOUT MEM SHARE failed[%d]", err);
-            return -1;
+            return NULL;
         }
 
-        memset(buffer->ptr, 0, len);
+
+        h = (MemHeader*)ptr;
+        h->size = sz;
+        h->ptr = (uint8_t *)h + sizeof(MemHeader);
+        h->dma_buf_fd = share_fd;
+        h->region = MEM_CARVEOUT;
+        h->offset = 0;
+        h->map_fd = map_fd;
+        h->handle = (void*)handle;
+
+        memset(H2P(h), 0, sz);
+        return (H2P(h));
     break;
     default:
-        OSAL_ErrorTrace("Invalid memory type in ION mem alloc[%d]", buffer->memory_region);
+        OSAL_ErrorTrace("Invalid memory type in ION mem alloc[%d]", region);
     }
-    return 0;
+    return NULL;
 }
 
-int memplugin_free(BuffAttribs *buffer)
+void memplugin_free(void *ptr)
 {
     int err = 0;
-    if (!buffer) {
-        OSAL_ErrorTrace("memplugin_free: Invalid Argument");
-        return -1;
-    }
+    if (!ptr)
+        return;
 
-    switch(buffer->memory_region) {
+    MemHeader *h = (MemHeader*)P2H(ptr);
+    switch(h->region) {
     case MEM_CARVEOUT:
-        err = ion_free(ion_fd, buffer->handle);
+        err = ion_free(ion_fd, h->handle);
         if (err < 0) {
             OSAL_ErrorTrace("ION CARVEOUT MEM FREE failed[%d]", err);
             return -1;
         }
-        close(buffer->map_fd);
-        munmap(buffer->ptr, buffer->len);
-        close(buffer->share_fd);
+        close(h->map_fd);
+        close(h->dma_buf_fd);
+        munmap(h, h->size+sizeof(MemHeader));
     break;
     default:
-        OSAL_ErrorTrace("Invalid memory type in ION mem free[%d]", buffer->memory_region);
+        OSAL_ErrorTrace("Invalid memory type in ION mem free[%d]", h->region);
     }
     return 0;
 }
 
-void *memplugin_share(void *ptr, MemRegion memory_region)
+int32_t memplugin_share(void *ptr)
 {
-    /* No Userspace Virtual pointers to DMA BUF Handles conversion required*/
-    /* Do nothing */
-    return (ptr);
+    if (!ptr)
+        return -1;
+
+    MemHeader *h = P2H(ptr);
+    return h->dma_buf_fd;
+
 }
 
 int memplugin_xlate(int alloc_fd, int* share_fd)
