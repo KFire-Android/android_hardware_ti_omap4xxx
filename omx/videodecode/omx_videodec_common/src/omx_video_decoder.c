@@ -1109,7 +1109,10 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
         /*Copy OMX_BUFFERFLAG_DECODEONLY from input buffer header to output buffer header*/
         if (pOutBufHeader && pInBufHeader) {
             pOutBufHeader->nFlags |= (pInBufHeader->nFlags & OMX_BUFFERFLAG_DECODEONLY);
+            ((OMXBase_BufHdrPvtData *)(pInBufHeader->pPlatformPrivate))->bufSt = OWNED_BY_CODEC;
+            ((OMXBase_BufHdrPvtData *)(pOutBufHeader->pPlatformPrivate))->bufSt = OWNED_BY_CODEC;
         }
+
         status =  VIDDEC3_process(pVidDecComp->pDecHandle, pInBufDescPtr, pOutBufDescPtr,
                                 (VIDDEC3_InArgs *)pVidDecComp->pDecInArgs, (VIDDEC3_OutArgs *)pVidDecComp->pDecOutArgs);
 
@@ -1217,10 +1220,9 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
         pVidDecComp->nOutbufInUseFlag = 0;
         nNewInBufferRequired = 0;
     }
-
-    //may have to change to multiple outputID[ii] in a loop like freeBufID
-    if( pDecOutArgs->outputID[0] ) {
-        pOutBufHeader = (OMX_BUFFERHEADERTYPE *)pDecOutArgs->outputID[0];
+    ii = 0;
+    while( pDecOutArgs->outputID[ii] ) {
+        pOutBufHeader = (OMX_BUFFERHEADERTYPE *)pDecOutArgs->outputID[ii];
         if( pVidDecComp->bSupportDecodeOrderTimeStamp == OMX_TRUE ) {
             OSAL_ReadFromPipe(pVidDecComp->pTimeStampStoragePipe, &(pOutBufHeader->nTimeStamp),
                                 sizeof(OMX_TICKS), &(nActualSize), OSAL_NO_SUSPEND);
@@ -1272,18 +1274,6 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
 
         pOutBufHeader->nFilledLen = nLumaFilledLen + nChromaFilledLen;
 
-        // Loop for all output buffers
-        while( pDecOutArgs->freeBufID[ii] ) {
-            if( pDecOutArgs->freeBufID[ii] == (OMX_S32) pOutBufHeader ) {
-                // If Free Buf Id matches output buffer id, then the
-                // output buffer is not locked by the codec
-                Buffer_locked = 0;
-                ii++;
-            } else {
-                pDupBufHeader = (OMX_BUFFERHEADERTYPE *) pDecOutArgs->freeBufID[ii++];
-                pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent, OMX_VIDDEC_OUTPUT_PORT, pDupBufHeader);
-            }
-        }
 
         if( pVidDecComp->bSupportSkipGreyOutputFrames ) {
             if( pDecOutArgs->displayBufs.bufDesc[0].frameType == IVIDEO_I_FRAME ||
@@ -1291,15 +1281,6 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
                 pVidDecComp->bSyncFrameReady = OMX_TRUE;
             }
         }
-        if( Buffer_locked == 1 ) {
-            if( pVidDecComp->bSyncFrameReady == OMX_TRUE ) {
-                if( !(pInBufHeader->nFlags & OMX_BUFFERFLAG_EOS) || !(pVidDecComp->bIsFlushRequired)) {
-                    pVidDecComp->sBase.pPvtData->fpDioSend(hComponent, OMX_VIDDEC_OUTPUT_PORT, pDupBufHeader);
-                }
-            } else {
-                pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent, OMX_VIDDEC_OUTPUT_PORT, pDupBufHeader);
-            }
-        } else {
             // In case Buffer is not locked
             if( pVidDecComp->bSyncFrameReady == OMX_TRUE ) {
                 if( !(pInBufHeader->nFlags & OMX_BUFFERFLAG_EOS) || !(pVidDecComp->bIsFlushRequired)) {
@@ -1311,20 +1292,9 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
                 pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
                                                     OMX_VIDDEC_OUTPUT_PORT, pOutBufHeader);
             }
-        }
-    } else if((pDecOutArgs->outputID[0] == 0)
-            && (pDecOutArgs->freeBufID[0] == pVidDecComp->pDecInArgs->inputID)) {
-        /* Special case where Codec only frees buffer but there
-        * is no buffer for display */
-        ii = 0;
-        /* Loop for all the free buffers */
-        while( pDecOutArgs->freeBufID[ii] ) {
-            pDupBufHeader = (OMX_BUFFERHEADERTYPE *)pDecOutArgs->freeBufID[ii];
-            pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
-                                                OMX_VIDDEC_OUTPUT_PORT, pDupBufHeader);
-            ii++;
-        }
-    }   /* End of else-if condition */
+    pDecOutArgs->outputID[ii] = 0;
+    ii++;
+    }
     if(((IVIDDEC3_Params *)(pVidDecComp->pDecStaticParams))->inputDataMode == IVIDEO_ENTIREFRAME ) {
         if( pInBufHeader && pDecOutArgs &&
                 (pVidDecComp->pDecDynParams->decodeHeader == XDM_DECODE_AU && pVidDecComp->bSupportDecodeOrderTimeStamp == OMX_TRUE)) {

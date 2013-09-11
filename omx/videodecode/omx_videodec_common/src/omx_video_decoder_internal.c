@@ -590,7 +590,6 @@ OMX_ERRORTYPE OMXVidDec_HandleFirstFrame(OMX_HANDLETYPE hComponent,
             pInBufHeader = *(ppInBufHeader);
             pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent, OMX_VIDDEC_INPUT_PORT,
                                                 pInBufHeader);
-            pInBufHeader = NULL;
         }
         /*! Change port definition to match with what codec reports */
         pInputPortDef->format.video.nFrameHeight = (OMX_U32)pDecStatus->outputHeight;

@@ -1047,6 +1047,8 @@ OMX_ERRORTYPE OMXBase_EmptyThisBuffer(OMX_HANDLETYPE hComponent,
     }
     eError = OMXBase_DIO_Queue(hComponent, pBuffer->nInputPortIndex, pBuffer);
     OMX_CHECK(eError == OMX_ErrorNone, eError);
+    ((OMXBase_BufHdrPvtData *)(pBuffer->pPlatformPrivate))->bufSt = OWNED_BY_US;
+
     /*If another buffer comes after eos then reset the variable that causes
     watermark to become meaningless on this port*/
     if( pPort->bEosRecd == OMX_TRUE ) {
@@ -1125,6 +1127,7 @@ OMX_ERRORTYPE OMXBase_FillThisBuffer(OMX_HANDLETYPE hComponent,
     }
     eError = OMXBase_DIO_Queue(hComponent, pBuffer->nOutputPortIndex, pBuffer);
     OMX_CHECK(eError == OMX_ErrorNone, eError);
+    ((OMXBase_BufHdrPvtData *)(pBuffer->pPlatformPrivate))->bufSt = OWNED_BY_US;
     eError = pBaseCompPvt->fpInvokeProcessFunction(hComponent, DATAEVENT);
 
 EXIT:

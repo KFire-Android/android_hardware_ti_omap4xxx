@@ -45,10 +45,21 @@ extern "C" {
 #define DEFAULT_COMPOENENT 0
 #define MAX_PLANES_PER_BUFFER 3
 
+
+/*
+* buffer life cycle
+*/
+typedef enum OMXBase_BufferStatus{
+    OWNED_BY_US,
+    OWNED_BY_CLIENT,
+    OWNED_BY_CODEC
+}OMXBase_BufStatus;
+
 /** Platform private buffer header
  */
 typedef struct OMXBase_BufHdrPrivateData {
     int32_t  dma_buf_fd[MAX_PLANES_PER_BUFFER];
+    OMXBase_BufStatus bufSt;
 }OMXBase_BufHdrPvtData;
 
 typedef struct OMXBase_CodecConfigBuffer {

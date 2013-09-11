@@ -211,6 +211,8 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Open (OMX_HANDLETYPE handle,
         pPort->pBufferlist[i]->pPlatformPrivate =
                             (OMXBase_BufHdrPvtData *)(pContext->pPlatformPrivatePool) + i;
 
+        ((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->bufSt = OWNED_BY_CLIENT;
+
         if( pPort->bIsBufferAllocator) {
             pPort->pBufferlist[i]->pBuffer = memplugin_alloc(pParams->nBufSize, 1, MEM_CARVEOUT, 0, 0);
 
@@ -330,7 +332,7 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Queue (OMX_HANDLETYPE handle,
 
     pPort = (OMXBase_Port *)_DIO_GetPort(handle, pContext->sCreateParams.nPortIndex);
     tStatus = OSAL_WriteToPipe(pContext->pPipeHandle, &pOMXBufHeader,
-    sizeof(pOMXBufHeader), OSAL_SUSPEND);
+                            sizeof(pOMXBufHeader), OSAL_SUSPEND);
     OMX_CHECK(OSAL_ErrNone == tStatus, OMX_ErrorUndefined);
 
 EXIT:
@@ -410,14 +412,16 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Send (OMX_HANDLETYPE handle,
 
     /* return the buffer back to the Application using EBD or FBD
     * depending on the direction of the port (input or output) */
-    if( OMX_DirInput == pPort->sPortDef.eDir ) {
-        eError = pAppCallbacks->EmptyBufferDone(pComp,
-        pComp->pApplicationPrivate, pOMXBufHeader);
-    } else if( OMX_DirOutput == pPort->sPortDef.eDir ) {
-        eError = pAppCallbacks->FillBufferDone(pComp,
-        pComp->pApplicationPrivate, pOMXBufHeader);
+    if (((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->bufSt != OWNED_BY_CLIENT) {
+        ((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->bufSt = OWNED_BY_CLIENT;
+        if( OMX_DirInput == pPort->sPortDef.eDir ) {
+            eError = pAppCallbacks->EmptyBufferDone(pComp,
+                                pComp->pApplicationPrivate, pOMXBufHeader);
+        } else if( OMX_DirOutput == pPort->sPortDef.eDir ) {
+            eError = pAppCallbacks->FillBufferDone(pComp,
+                                pComp->pApplicationPrivate, pOMXBufHeader);
+        }
     }
-
 EXIT:
     return (eError);
 }
@@ -504,13 +508,16 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Control (OMX_HANDLETYPE handle,
                 OSAL_ReadFromPipe(pContext->pPipeHandle, &pBuffHeader,
                                 sizeof(pBuffHeader), &actualSize, OSAL_NO_SUSPEND);
                 elementsInpipe--;
-                if( OMX_DirInput == pPort->sPortDef.eDir ) {
-                    eError = pAppCallbacks->EmptyBufferDone(pComp,
+                if (((OMXBase_BufHdrPvtData *)(pBuffHeader->pPlatformPrivate))->bufSt != OWNED_BY_CLIENT) {
+                    ((OMXBase_BufHdrPvtData *)(pBuffHeader->pPlatformPrivate))->bufSt = OWNED_BY_CLIENT;
+                    if( OMX_DirInput == pPort->sPortDef.eDir ) {
+                        eError = pAppCallbacks->EmptyBufferDone(pComp,
                                                     pComp->pApplicationPrivate, pBuffHeader);
-                } else if( OMX_DirOutput == pPort->sPortDef.eDir ) {
-                    pBuffHeader->nFilledLen = 0;
-                    eError = pAppCallbacks->FillBufferDone(pComp,
+                    } else if( OMX_DirOutput == pPort->sPortDef.eDir ) {
+                        pBuffHeader->nFilledLen = 0;
+                        eError = pAppCallbacks->FillBufferDone(pComp,
                                 pComp->pApplicationPrivate, pBuffHeader);
+                    }
                 }
             }
         break;
@@ -557,15 +564,18 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Control (OMX_HANDLETYPE handle,
 
             /*Send the buffer back*/
             pBuffHeader->nFlags &= (~OMX_BUFFERFLAG_CODECCONFIG);
-            if( OMX_DirInput == pPort->sPortDef.eDir ) {
-                eError = pAppCallbacks->EmptyBufferDone(pComp,
+            if (((OMXBase_BufHdrPvtData *)(pBuffHeader->pPlatformPrivate))->bufSt != OWNED_BY_CLIENT) {
+                ((OMXBase_BufHdrPvtData *)(pBuffHeader->pPlatformPrivate))->bufSt = OWNED_BY_CLIENT;
+                if( OMX_DirInput == pPort->sPortDef.eDir ) {
+                    eError = pAppCallbacks->EmptyBufferDone(pComp,
                                         pComp->pApplicationPrivate, pBuffHeader);
-            } else if( OMX_DirOutput == pPort->sPortDef.eDir ) {
-                /*So that the other port does not try to interpret any garbage
-                data that may be present*/
-                pBuffHeader->nFilledLen = 0;
-                eError = pAppCallbacks->FillBufferDone(pComp,
+                } else if( OMX_DirOutput == pPort->sPortDef.eDir ) {
+                    /*So that the other port does not try to interpret any garbage
+                    data that may be present*/
+                    pBuffHeader->nFilledLen = 0;
+                    eError = pAppCallbacks->FillBufferDone(pComp,
                                     pComp->pApplicationPrivate, pBuffHeader);
+                }
             }
         break;
 
@@ -589,13 +599,16 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Control (OMX_HANDLETYPE handle,
             }
             pBuffHeader->nFilledLen = pAttrDesc->size;
             OSAL_Memcpy(pBuffHeader->pBuffer, H2P(pAttrDesc), pAttrDesc->size);
-            /*Send the buffer*/
-            if( OMX_DirInput == pPort->sPortDef.eDir ) {
-                eError = pAppCallbacks->EmptyBufferDone(pComp,
-                pComp->pApplicationPrivate, pBuffHeader);
-            } else if( OMX_DirOutput == pPort->sPortDef.eDir ) {
-                eError = pAppCallbacks->FillBufferDone(pComp,
-                pComp->pApplicationPrivate, pBuffHeader);
+            if (((OMXBase_BufHdrPvtData *)(pBuffHeader->pPlatformPrivate))->bufSt != OWNED_BY_CLIENT) {
+                ((OMXBase_BufHdrPvtData *)(pBuffHeader->pPlatformPrivate))->bufSt = OWNED_BY_CLIENT;
+                /*Send the buffer*/
+                if( OMX_DirInput == pPort->sPortDef.eDir ) {
+                    eError = pAppCallbacks->EmptyBufferDone(pComp,
+                                        pComp->pApplicationPrivate, pBuffHeader);
+                } else if( OMX_DirOutput == pPort->sPortDef.eDir ) {
+                    eError = pAppCallbacks->FillBufferDone(pComp,
+                                            pComp->pApplicationPrivate, pBuffHeader);
+                }
             }
         break;
 
