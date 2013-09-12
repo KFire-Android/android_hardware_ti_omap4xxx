@@ -32,6 +32,10 @@ extern "C" {
 #include <ti/sdo/ce/video3/viddec3.h>
 #include <omx_base_utils.h>
 
+#include <hardware/gralloc.h>
+#include <hardware/hardware.h>
+#include <hal_public.h>
+
 #define OMX_VIDDEC_NUM_OF_PORTS             OMX_BASE_NUM_OF_PORTS
 #define OMX_VIDDEC_INPUT_PORT               OMX_BASE_INPUT_PORT
 #define OMX_VIDDEC_OUTPUT_PORT              OMX_BASE_OUTPUT_PORT
@@ -76,6 +80,7 @@ typedef struct OMXVideoDecoderComponent {
     OMX_CONFIG_RECTTYPE             t2DBufferAllocParams[OMX_VIDDEC_NUM_OF_PORTS];
 
     /* local params */
+    gralloc_module_t                const *grallocModule;
     OMXBase_CodecConfigBuf          sCodecConfig;
     OMX_U32                         nOutPortReconfigRequired;
     OMX_U32                         nCodecRecreationRequired;

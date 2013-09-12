@@ -17,10 +17,6 @@
 #include <omx_video_decoder_internal.h>
 #include <OMX_TI_Custom.h>
 
-#include <hardware/gralloc.h>
-#include <hardware/hardware.h>
-#include <hal_public.h>
-
 #include <osal_trace.h>
 #include <memplugin.h>
 
@@ -877,6 +873,7 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
     uint32_t                nActualSize;
     OMX_BOOL                went_thru_loop = OMX_FALSE;
     OMX_BOOL                duped_IPbuffer = OMX_TRUE;
+    IMG_native_handle_t*    grallocHandle;
 
     OMX_CHECK(hComponent != NULL, OMX_ErrorBadParameter);
 
@@ -1113,6 +1110,14 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             ((OMXBase_BufHdrPvtData *)(pOutBufHeader->pPlatformPrivate))->bufSt = OWNED_BY_CODEC;
         }
 
+        if (pOutBufHeader) {
+            grallocHandle = (IMG_native_handle_t*)(pOutBufHeader->pBuffer);
+            pVidDecComp->grallocModule->lock((gralloc_module_t const *) pVidDecComp->grallocModule,
+                                    (buffer_handle_t)grallocHandle, GRALLOC_USAGE_HW_RENDER,
+                                    0,0,pVidDecComp->sBase.pPorts[OMX_VIDDEC_OUTPUT_PORT]->sPortDef.format.video.nFrameWidth,
+                                    pVidDecComp->sBase.pPorts[OMX_VIDDEC_OUTPUT_PORT]->sPortDef.format.video.nFrameHeight,NULL);
+        }
+
         status =  VIDDEC3_process(pVidDecComp->pDecHandle, pInBufDescPtr, pOutBufDescPtr,
                                 (VIDDEC3_InArgs *)pVidDecComp->pDecInArgs, (VIDDEC3_OutArgs *)pVidDecComp->pDecOutArgs);
 
@@ -1164,6 +1169,9 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
                 pVidDecComp->nFrameCounter--;
             }
             pFreeBufHeader = (OMX_BUFFERHEADERTYPE *) pDecOutArgs->freeBufID[ii];
+            grallocHandle = (IMG_native_handle_t*)(pFreeBufHeader->pBuffer);
+            pVidDecComp->grallocModule->unlock((gralloc_module_t const *) pVidDecComp->grallocModule, (buffer_handle_t)grallocHandle);
+
             /* Send the Freed buffer back to base component */
             pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
                                                 OMX_VIDDEC_OUTPUT_PORT, pFreeBufHeader);
@@ -1281,19 +1289,21 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
                 pVidDecComp->bSyncFrameReady = OMX_TRUE;
             }
         }
-            // In case Buffer is not locked
-            if( pVidDecComp->bSyncFrameReady == OMX_TRUE ) {
-                if( !(pInBufHeader->nFlags & OMX_BUFFERFLAG_EOS) || !(pVidDecComp->bIsFlushRequired)) {
-                    // Send the Output buffer to Base component
-                    pVidDecComp->sBase.pPvtData->fpDioSend(hComponent,
-                                                    OMX_VIDDEC_OUTPUT_PORT, pOutBufHeader);
-                }
-            } else {
-                pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
-                                                    OMX_VIDDEC_OUTPUT_PORT, pOutBufHeader);
+        grallocHandle = (IMG_native_handle_t*)(pOutBufHeader->pBuffer);
+        pVidDecComp->grallocModule->unlock((gralloc_module_t const *) pVidDecComp->grallocModule, (buffer_handle_t)grallocHandle);
+
+        if( pVidDecComp->bSyncFrameReady == OMX_TRUE ) {
+            if( !(pInBufHeader->nFlags & OMX_BUFFERFLAG_EOS) || !(pVidDecComp->bIsFlushRequired)) {
+                // Send the Output buffer to Base component
+                pVidDecComp->sBase.pPvtData->fpDioSend(hComponent,
+                                                OMX_VIDDEC_OUTPUT_PORT, pOutBufHeader);
             }
-    pDecOutArgs->outputID[ii] = 0;
-    ii++;
+        } else {
+            pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
+                                                OMX_VIDDEC_OUTPUT_PORT, pOutBufHeader);
+        }
+        pDecOutArgs->outputID[ii] = 0;
+        ii++;
     }
     if(((IVIDDEC3_Params *)(pVidDecComp->pDecStaticParams))->inputDataMode == IVIDEO_ENTIREFRAME ) {
         if( pInBufHeader && pDecOutArgs &&
