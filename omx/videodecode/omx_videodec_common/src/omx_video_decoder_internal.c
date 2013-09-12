@@ -202,7 +202,6 @@ OMX_ERRORTYPE OMXVidDec_HandleFLUSH_EOS(OMX_HANDLETYPE hComponent,
 {
     OMX_ERRORTYPE           eError = OMX_ErrorNone, eRMError = OMX_ErrorNone;
     OMX_COMPONENTTYPE       *pHandle = NULL;
-    OMX_BUFFERHEADERTYPE    *pOutBufHeader = NULL;
     OMX_BUFFERHEADERTYPE    *pDupBufHeader = NULL;
     OMXVidDecComp           *pVidDecComp = NULL;
     OMX_U32                 i = 0;
@@ -219,6 +218,7 @@ OMX_ERRORTYPE OMXVidDec_HandleFLUSH_EOS(OMX_HANDLETYPE hComponent,
     pVidDecComp = (OMXVidDecComp *)pHandle->pComponentPrivate;
     pDecOutArgs = pVidDecComp->pDecOutArgs;
     p2DOutBufAllocParam = &(pVidDecComp->t2DBufferAllocParams[outPort]);
+
     if( pVidDecComp->nFrameCounter > 0 ) {
         /* Call codec flush and call process call until error */
         OMX_CHECK(((pVidDecComp->pDecDynParams != NULL) && (pVidDecComp->pDecStatus != NULL)), OMX_ErrorBadParameter);
@@ -235,96 +235,18 @@ OMX_ERRORTYPE OMXVidDec_HandleFLUSH_EOS(OMX_HANDLETYPE hComponent,
                                 (VIDDEC3_InArgs *)pVidDecComp->pDecInArgs,
                                 (VIDDEC3_OutArgs *)pVidDecComp->pDecOutArgs);
 
-            if( pOutBufHeader != NULL ) {
-                if( pLastOutBufHeader != NULL ) {
-                    pVidDecComp->sBase.pPvtData->fpDioSend(hComponent, OMX_VIDDEC_OUTPUT_PORT,
-                                                            pLastOutBufHeader);
-                    OSAL_Free(pLastOutBufHeader);
-                    pLastOutBufHeader = NULL;
-                }
-                if( status == XDM_EFAIL && (pInBufHeader != NULL || pVidDecComp->bIsFlushRequired) ) {
-                    pOutBufHeader->nFlags |= OMX_BUFFERFLAG_EOS;
-                }
-                if( pVidDecComp->bSupportDecodeOrderTimeStamp == OMX_TRUE ) {
-                    OSAL_ReadFromPipe(pVidDecComp->pTimeStampStoragePipe,
-                                    &(pOutBufHeader->nTimeStamp), sizeof(OMX_TICKS),
-                                    &(nActualSize), OSAL_NO_SUSPEND);
-                }
-                pVidDecComp->sBase.pPvtData->fpDioSend(hComponent, OMX_VIDDEC_OUTPUT_PORT, pOutBufHeader);
-            }
             if( status != XDM_EFAIL ) {
                 /* Send the buffers out */
-                if( pDecOutArgs->outputID[0] != 0 ) {
-                    if( pVidDecComp->sBase.pPorts[OMX_VIDDEC_OUTPUT_PORT]->sPortDef.format.video.nStride
-                            >= p2DOutBufAllocParam->nWidth ) {
-                        nStride = pVidDecComp->sBase.pPorts[OMX_VIDDEC_OUTPUT_PORT]->sPortDef.format.video.nStride;
-                    } else {
-                        nStride = p2DOutBufAllocParam->nWidth;
-                    }
-                    pOutBufHeader = (OMX_BUFFERHEADERTYPE *)pDecOutArgs->outputID[0];
-                    if( (pInBufHeader != NULL || pVidDecComp->bIsFlushRequired) || pVidDecComp->nOutPortReconfigRequired == 1 ) {
-                        activeFrameRegion[0] = pDecOutArgs->displayBufs.bufDesc[0].activeFrameRegion;
-                        activeFrameRegion[1].bottomRight.y = activeFrameRegion[0].bottomRight.y / 2;
-                        activeFrameRegion[1].bottomRight.x = activeFrameRegion[0].bottomRight.x;
-                        pOutBufHeader->nOffset = (activeFrameRegion[0].topLeft.y * nStride) +
-                                                activeFrameRegion[0].topLeft.x;
-                        nLumaFilledLen = (nStride * pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight)
-                                        - (nStride * activeFrameRegion[0].topLeft.y)
-                                        - activeFrameRegion[0].topLeft.x;
-                        nChromaFilledLen = (nStride * activeFrameRegion[1].bottomRight.y)
-                                        - nStride + activeFrameRegion[1].bottomRight.x;
-                        pOutBufHeader->nFilledLen = nLumaFilledLen + nChromaFilledLen;
-                    } else {
-                        pOutBufHeader->nOffset = 0;
-                        pOutBufHeader->nFilledLen = 0;
-                    }
-                    if( (pInBufHeader != NULL || pVidDecComp->bIsFlushRequired) || pVidDecComp->nOutPortReconfigRequired == 1 ) {
-                        activeFrameRegion[0] = pDecOutArgs->displayBufs.bufDesc[0].activeFrameRegion;
-                        activeFrameRegion[1].bottomRight.y = activeFrameRegion[0].bottomRight.y / 2;
-                        activeFrameRegion[1].bottomRight.x = activeFrameRegion[0].bottomRight.x;
-                        pOutBufHeader->nOffset = (activeFrameRegion[0].topLeft.y * nStride) +
-                                                    activeFrameRegion[0].topLeft.x;
-                        if((pVidDecComp->tCropDimension.nTop != activeFrameRegion[0].topLeft.y
-                                || pVidDecComp->tCropDimension.nLeft != activeFrameRegion[0].topLeft.x)
-                                || (pVidDecComp->tCropDimension.nWidth != activeFrameRegion[0].bottomRight.x - activeFrameRegion[0].topLeft.x
-                                || pVidDecComp->tCropDimension.nHeight != activeFrameRegion[0].bottomRight.y - activeFrameRegion[0].topLeft.y)) {
-                            pVidDecComp->tCropDimension.nTop = activeFrameRegion[0].topLeft.y;
-                            pVidDecComp->tCropDimension.nLeft = activeFrameRegion[0].topLeft.x;
-                            pVidDecComp->tCropDimension.nWidth = activeFrameRegion[0].bottomRight.x - activeFrameRegion[0].topLeft.x;
-                            pVidDecComp->tCropDimension.nHeight = activeFrameRegion[0].bottomRight.y - activeFrameRegion[0].topLeft.y;
-                            if( pVidDecComp->bUsePortReconfigForCrop == OMX_TRUE ) {
-                                eError = pVidDecComp->sBase.fpReturnEventNotify(hComponent,
-                                                    OMX_EventPortSettingsChanged, OMX_VIDDEC_OUTPUT_PORT, OMX_IndexConfigCommonOutputCrop, NULL);
-                                if( eError != OMX_ErrorNone ) {
-                                    OSAL_ErrorTrace("Port reconfig callback returned error, trying to continue");
-                                }
-                            }
-                        }
-                        nLumaFilledLen
-                                = (nStride * pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight)
-                                - (nStride * activeFrameRegion[0].topLeft.y)
-                                - activeFrameRegion[0].topLeft.x;
-                        nChromaFilledLen
-                                = (nStride * activeFrameRegion[1].bottomRight.y)
-                                - nStride + activeFrameRegion[1].bottomRight.x;
-                        pOutBufHeader->nFilledLen = nLumaFilledLen + nChromaFilledLen;
-                    } else {
-                        pOutBufHeader->nOffset = 0;
-                        pOutBufHeader->nFilledLen = 0;
-                    }
-                }
                 i=0;
                 while( pDecOutArgs->freeBufID[i] != 0 ) {
-                    if( pDecOutArgs->freeBufID[i] != (OMX_S32) pOutBufHeader ) {
-                        pDupBufHeader = (OMX_BUFFERHEADERTYPE *)pDecOutArgs->freeBufID[i];
-                        if( pDupBufHeader ) {
-                            pDupBufHeader->nOffset = 0;
-                            pDupBufHeader->nFilledLen = 0;
-                            pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
+                    pDupBufHeader = (OMX_BUFFERHEADERTYPE *)pDecOutArgs->freeBufID[i];
+                    if( pDupBufHeader ) {
+                        pDupBufHeader->nOffset = 0;
+                        pDupBufHeader->nFilledLen = 0;
+                        pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
                                                         OMX_VIDDEC_OUTPUT_PORT, pDupBufHeader);
-                        }
                     }
-                    i++;
+                i++;
                 }
             }
         } while( status != XDM_EFAIL );
@@ -336,7 +258,6 @@ OMX_ERRORTYPE OMXVidDec_HandleFLUSH_EOS(OMX_HANDLETYPE hComponent,
         pLastOutBufHeader->nFlags |= OMX_BUFFERFLAG_EOS;
         //pLastOutBufHeader->nFilledLen = 0;
         pVidDecComp->sBase.pPvtData->fpDioSend(hComponent, OMX_VIDDEC_OUTPUT_PORT, pLastOutBufHeader);
-                                            OSAL_Free(pLastOutBufHeader);
     }
     if( pInBufHeader != NULL ) {
         pVidDecComp->sBase.pPvtData->fpDioSend(hComponent, OMX_VIDDEC_INPUT_PORT, pInBufHeader);
@@ -713,11 +634,7 @@ OMX_ERRORTYPE OMXVidDec_HandleCodecProcError(OMX_HANDLETYPE hComponent,
             pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
                                         OMX_VIDDEC_OUTPUT_PORT,
                                         pOutBufHeader);
-            /*! Free up the Output buffer */
-            if( pOutBufHeader ) {
-                OSAL_Free(pOutBufHeader);
-                pOutBufHeader = NULL;
-            }
+
             pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
                                         OMX_VIDDEC_INPUT_PORT,
                                         pInBufHeader);
@@ -810,22 +727,10 @@ OMX_ERRORTYPE OMXVidDec_HandleCodecProcError(OMX_HANDLETYPE hComponent,
                 if( pDupBufHeader != pOutBufHeader && pDupBufHeader != pNewOutBufHeader ) {
                     pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
                                                 OMX_VIDDEC_OUTPUT_PORT, pDupBufHeader);
-                    if( pDupBufHeader ) {
-                        OSAL_Free(pDupBufHeader);
-                        pDupBufHeader = NULL;
-                    }
                 }
             }
         }
 
-        if( pOutBufHeader ) {
-            OSAL_Free(pOutBufHeader);
-            pOutBufHeader = NULL;
-        }
-        if( pNewOutBufHeader ) {
-            OSAL_Free(pNewOutBufHeader);
-            pNewOutBufHeader = NULL;
-        }
         /*! Notify to Client change in output port settings */
         eError = pVidDecComp->sBase.fpReturnEventNotify(hComponent,
                                     OMX_EventPortSettingsChanged,
@@ -846,15 +751,7 @@ OMX_ERRORTYPE OMXVidDec_HandleCodecProcError(OMX_HANDLETYPE hComponent,
                     if( pOutBufHeader != pDupBufHeader ) {
                         pVidDecComp->sBase.pPvtData->fpDioCancel(hComponent,
                                                 OMX_VIDDEC_OUTPUT_PORT, pDupBufHeader);
-                        if( pDupBufHeader ) {
-                            OSAL_Free(pDupBufHeader);
-                            pDupBufHeader = NULL;
-                        }
                     }
-                }
-                if( pOutBufHeader ) {
-                    OSAL_Free(pOutBufHeader);
-                    pOutBufHeader = NULL;
                 }
             }
             pVidDecComp->nFatalErrorGiven = 1;
