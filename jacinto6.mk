@@ -17,7 +17,13 @@
 
 PRODUCT_PACKAGES += \
     hwcomposer.jacinto6 \
-    camera.jacinto6
+    camera.jacinto6 \
+    libOMX_Core \
+    libOMX \
+    libOMX.TI.DUCATI1.VIDEO.DECODER \
+    libosal \
+    libipc \
+    libdce
 
 PRODUCT_VENDOR_KERNEL_HEADERS := hardware/ti/omap4xxx/kernel-headers
 
