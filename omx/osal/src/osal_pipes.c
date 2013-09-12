@@ -136,7 +136,7 @@ OSAL_ERROR OSAL_WriteToFrontOfPipe(void *pPipe, void *pMessage, uint32_t size, i
 
         /*Write back to pipe */
         lSizeWritten = write(pHandle->pfd[1], tempPtr, pHandle->totalBytesInPipe);
-        if (lSizeWritten != size) {
+        if (lSizeWritten != pHandle->totalBytesInPipe) {
             OSAL_Free(tempPtr);
             return OSAL_ErrPipeWrite;
         }

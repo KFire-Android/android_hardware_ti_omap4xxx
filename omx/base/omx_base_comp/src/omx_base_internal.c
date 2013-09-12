@@ -774,12 +774,10 @@ OMX_ERRORTYPE OMXBase_EventNotifyToClient(OMX_HANDLETYPE hComponent,
                         /* free up the pool incase if idle to loaded */
                         if( pBaseComp->tCurState == OMX_StateIdle &&
                                 pBaseComp->tNewState == OMX_StateLoaded ) {
-                            if( pPort->bIsBufferAllocator) {
-                                eError = OMXBase_DIO_Close(hComponent, i);
-                                OMX_CHECK(OMX_ErrorNone == eError, eError);
-                                eError = OMXBase_DIO_Deinit(hComponent, i);
-                                OMX_CHECK(OMX_ErrorNone == eError, eError);
-                            }
+                            eError = OMXBase_DIO_Close(hComponent, i);
+                            OMX_CHECK(OMX_ErrorNone == eError, eError);
+                            eError = OMXBase_DIO_Deinit(hComponent, i);
+                            OMX_CHECK(OMX_ErrorNone == eError, eError);
                         }
                     }
                 }

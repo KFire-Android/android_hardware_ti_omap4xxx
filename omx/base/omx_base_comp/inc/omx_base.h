@@ -90,6 +90,7 @@ typedef struct OMXBase_Port{
     OMX_PTR                         pBufAllocFreeEvent;
     OMX_PTR                         pDioOpenCloseSem;
     OMX_PTR                         hDIO;
+    OMX_PTR                         nCachedBufferCnt;
 }OMXBase_Port;
 
 /* OMX base component structure

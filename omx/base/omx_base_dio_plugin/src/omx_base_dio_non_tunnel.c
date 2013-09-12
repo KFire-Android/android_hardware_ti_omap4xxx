@@ -230,6 +230,8 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Open (OMX_HANDLETYPE handle,
                         pPort->sPortDef.nBufferCountActual),
                         sizeof(OMX_BUFFERHEADERTYPE *), 1);
     OMX_CHECK(OSAL_ErrNone == tStatus, OMX_ErrorInsufficientResources);
+    pPort->nCachedBufferCnt = pPort->sPortDef.nBufferCountActual;
+
 
 EXIT:
     if( pBufArr != NULL ) {
@@ -272,17 +274,23 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Close(OMX_HANDLETYPE handle)
         nCompBufs = pBaseComp->pPorts[nPortIndex - nStartPortNumber]->sProps.nNumComponentBuffers;
         }
         if( pPort->pBufferlist ) {
-            if( pPort->bIsBufferAllocator) {
-                for( i = 0; i < pPort->nBufferCnt; i++ ) {
-                    if( pPort->pBufferlist[0] ) {
+            for( i = 0; i < pPort->nCachedBufferCnt; i++ ) {
+                if( pPort->pBufferlist[i] ) {
+                    if( pPort->bIsBufferAllocator) {
                         /*Caling free on the main buffer*/
                         pTmpBuffer = pPort->pBufferlist[i]->pBuffer;
                         if( pTmpBuffer ) {
-                            MemHeader *h = P2H(pTmpBuffer);
                             memplugin_free((void*)pTmpBuffer);
                         }
                         if( nCompBufs == 2 ) {
                             OMX_CHECK(OMX_FALSE, OMX_ErrorNotImplemented);
+                        }
+                    } else {
+                        if (((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[0] > 0) {
+                            close(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[0]);
+                        }
+                        if (((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[1] > 0) {
+                            close(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[1]);
                         }
                     }
                 }
@@ -290,6 +298,7 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Close(OMX_HANDLETYPE handle)
             /* freeup the buffer list */
             OSAL_Free(pPort->pBufferlist);
             pPort->pBufferlist = NULL;
+            pPort->nCachedBufferCnt = 0;
         }
     }
 
