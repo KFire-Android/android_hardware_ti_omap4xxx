@@ -238,6 +238,7 @@ OMX_ERRORTYPE OMXBase_ComponentDeinit(OMX_HANDLETYPE hComponent)
     if( tStatus != OSAL_ErrNone ) {
         eError = OMX_ErrorUndefined;
     }
+    pBaseComp->pMutex = NULL;
 
     OSAL_Free(pBaseCompPvt);
     pBaseCompPvt = NULL;

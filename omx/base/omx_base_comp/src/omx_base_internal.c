@@ -167,6 +167,7 @@ OMX_ERRORTYPE OMXBase_PrivateDeInit(OMX_HANDLETYPE hComponent)
         if( tStatus != OSAL_ErrNone ) {
             eError = OMX_ErrorUndefined;
         }
+        pBaseCompPvt->pTriggerEvent = NULL;
     }
 
     if( pBaseCompPvt->pCmdCompleteEvent ) {
@@ -174,18 +175,21 @@ OMX_ERRORTYPE OMXBase_PrivateDeInit(OMX_HANDLETYPE hComponent)
         if( tStatus != OSAL_ErrNone ) {
             eError = OMX_ErrorUndefined;
         }
+        pBaseCompPvt->pCmdCompleteEvent = NULL;
     }
     if( pBaseCompPvt->pErrorCmdcompleteEvent ) {
         tStatus = OSAL_DeleteEvent(pBaseCompPvt->pErrorCmdcompleteEvent);
         if( tStatus != OSAL_ErrNone ) {
             eError = OMX_ErrorUndefined;
         }
+        pBaseCompPvt->pErrorCmdcompleteEvent = NULL;
     }
     if( pBaseCompPvt->pCmdPipe ) {
         tStatus = OSAL_DeletePipe(pBaseCompPvt->pCmdPipe);
         if( tStatus != OSAL_ErrNone ) {
             eError = OMX_ErrorUndefined;
         }
+        pBaseCompPvt->pCmdPipe = NULL;
     }
     if( pBaseCompPvt->pCmdDataPipe ) {
         /*If pipe still has some data then empty the data and free the memory*/
@@ -209,12 +213,14 @@ OMX_ERRORTYPE OMXBase_PrivateDeInit(OMX_HANDLETYPE hComponent)
         if( tStatus != OSAL_ErrNone ) {
             eError = OMX_ErrorUndefined;
         }
+        pBaseCompPvt->pCmdDataPipe = NULL;
     }
     if( pBaseCompPvt->pCmdPipeMutex ) {
         tStatus = OSAL_DeleteMutex(pBaseCompPvt->pCmdPipeMutex);
         if( tStatus != OSAL_ErrNone ) {
             eError = OMX_ErrorUndefined;
         }
+        pBaseCompPvt->pCmdPipeMutex = NULL;
     }
 
     OSAL_ReleaseMutex(pBaseCompPvt->pNewStateMutex);
@@ -224,6 +230,7 @@ OMX_ERRORTYPE OMXBase_PrivateDeInit(OMX_HANDLETYPE hComponent)
         if( tStatus != OSAL_ErrNone ) {
             eError = OMX_ErrorUndefined;
         }
+        pBaseCompPvt->pNewStateMutex = NULL;
     }
 
 EXIT:
