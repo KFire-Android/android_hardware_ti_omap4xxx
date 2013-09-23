@@ -98,6 +98,7 @@ OMX_ERRORTYPE OMX_Init()
     if( count == 1 ) {
         pthread_mutex_init(&mutex, NULL);
         eError = OMX_BuildComponentTable();
+        memplugin_open();
     }
 
     eOsalError = OSAL_ReleaseMutex(pCoreInitMutex);
@@ -327,6 +328,7 @@ OMX_ERRORTYPE OMX_Deinit()
     }
 
     if( count == 0 ) {
+        memplugin_close();
         if( pthread_mutex_unlock(&mutex) != 0 ) {
             OSAL_ErrorTrace("Core: Error in Mutex unlock");
         }

@@ -118,8 +118,6 @@ OMX_ERRORTYPE OMXBase_PrivateInit(OMX_HANDLETYPE hComponent)
     pBaseCompPvt->fpDioCancel            =  OMXBase_DIO_Cancel;
     pBaseCompPvt->fpDioControl           =  OMXBase_DIO_Control;
 
-    memplugin_open();
-
 EXIT:
     return eError;
 }
@@ -227,8 +225,6 @@ OMX_ERRORTYPE OMXBase_PrivateDeInit(OMX_HANDLETYPE hComponent)
             eError = OMX_ErrorUndefined;
         }
     }
-
-    memplugin_close();
 
 EXIT:
     return (eError);
