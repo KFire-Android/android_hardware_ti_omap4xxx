@@ -558,6 +558,7 @@ OMX_ERRORTYPE OMXVidDec_XlateBuffHandle(OMX_HANDLETYPE hComponent,
     OMXBase_Port        *pPort;
     OMX_U32             nPortIndex;
     int32_t             tRetVal;
+    int                 i;
 
     pComp = (OMX_COMPONENTTYPE *)(hComponent);
     pVidDecComp = (OMXVidDecComp *)pComp->pComponentPrivate;
@@ -572,13 +573,13 @@ OMX_ERRORTYPE OMXVidDec_XlateBuffHandle(OMX_HANDLETYPE hComponent,
     /* Non a buffer allocator, then check if any xlation is needed */
     if (pPort->sProps.eBufMemoryType == MEM_GRALLOC) {
         //Get the DMA BUFF_FDs for the gralloc pointers
-        int share_fds[3];
+        int share_fds[MAX_PLANES_PER_BUFFER];
         int alloc_fd = (OMX_U32)(((IMG_native_handle_t*)(pOMXBufHeader->pBuffer))->fd[0]);
         tRetVal = memplugin_xlate(alloc_fd, share_fds);
         OMX_CHECK(tRetVal == 0, OMX_ErrorInsufficientResources);
-
-        ((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->dma_buf_fd[0] = share_fds[0];
-        ((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->dma_buf_fd[1] = share_fds[1];
+        for ( i = 0; i < MAX_PLANES_PER_BUFFER; i++ ) {
+            ((OMXBase_BufHdrPvtData *)(pOMXBufHeader->pPlatformPrivate))->sMemHdr[i].dma_buf_fd = share_fds[i];
+        }
     }
 
 EXIT:
@@ -1081,22 +1082,21 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             if (pVidDecComp->sBase.pPorts[OMX_VIDDEC_OUTPUT_PORT]->sProps.eBufMemoryType == MEM_GRALLOC) {
                 pOutBufDescPtr->descs[0].bufSize.tileMem.width  = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth;
                 pOutBufDescPtr->descs[0].bufSize.tileMem.height = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight;
-                pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->dma_buf_fd[0]);
+                pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0].dma_buf_fd);
                 pOutBufDescPtr->descs[0].memType = XDM_MEMTYPE_TILED8;
                 pOutBufDescPtr->descs[1].bufSize.tileMem.width =pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth;
                 pOutBufDescPtr->descs[1].bufSize.tileMem.height = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight / 2;
-                pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->dma_buf_fd[1]);
+                pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[1].dma_buf_fd);
                 pOutBufDescPtr->descs[1].memType = XDM_MEMTYPE_TILED16;
             } else {
                 pOutBufDescPtr->descs[0].bufSize.bytes  = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth *
                                                           pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight;
-                pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)(pOutBufHeader->pBuffer);
+                pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0].dma_buf_fd);
                 pOutBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
                 pOutBufDescPtr->descs[1].bufSize.bytes = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth *
                                                          pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight/2;
-                pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)(pOutBufHeader->pBuffer);
+                pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0].dma_buf_fd);
                 pOutBufDescPtr->descs[1].memType = XDM_MEMTYPE_RAW;
-                P2H(pOutBufHeader->pBuffer)->offset = pOutBufDescPtr->descs[0].bufSize.bytes;
                 nStride = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth;
             }
             pOutBufHeader->nTimeStamp = pInBufHeader->nTimeStamp;

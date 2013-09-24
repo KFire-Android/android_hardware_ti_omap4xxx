@@ -83,5 +83,8 @@ void memplugin_free(void *ptr);
 int32_t memplugin_share(void *ptr);
 int memplugin_xlate(int alloc_fd, int* share_fd);
 
+void *memplugin_alloc_noheader(MemHeader *memHdr, int sz, int height, MemRegion region, int align, int flags);
+void memplugin_free_noheader(MemHeader *memHdr);
+
 #endif  /* __MEMPLUGIN_H__ */
 

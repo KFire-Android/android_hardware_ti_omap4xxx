@@ -1079,7 +1079,7 @@ OMX_ERRORTYPE OMXBase_GetUVBuffer(OMX_HANDLETYPE hComponent,
                             NULL, OMX_ErrorBadParameter);
 
     *pUVBuffer = (void*)((OMXBase_BufHdrPvtData *)((OMX_BUFFERHEADERTYPE *)pBufHdr)->
-                    pPlatformPrivate)->dma_buf_fd[1];
+                    pPlatformPrivate)->sMemHdr[1].dma_buf_fd;
 
 EXIT:
     return (eError);

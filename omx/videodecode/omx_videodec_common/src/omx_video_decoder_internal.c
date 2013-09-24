@@ -239,6 +239,8 @@ OMX_ERRORTYPE OMXVidDec_HandleFLUSH_EOS(OMX_HANDLETYPE hComponent,
         }
         OMX_CHECK(eError == OMX_ErrorNone, eError);
         do {
+            pVidDecComp->tOutBufDesc->numBufs = 0;
+            pVidDecComp->tInBufDesc->numBufs = 0;
             status =  VIDDEC3_process(pVidDecComp->pDecHandle, (XDM2_BufDesc *)pVidDecComp->tInBufDesc,
                                 (XDM2_BufDesc *)pVidDecComp->tOutBufDesc,
                                 (VIDDEC3_InArgs *)pVidDecComp->pDecInArgs,

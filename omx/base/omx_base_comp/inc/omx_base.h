@@ -58,7 +58,7 @@ typedef enum OMXBase_BufferStatus{
 /** Platform private buffer header
  */
 typedef struct OMXBase_BufHdrPrivateData {
-    int32_t  dma_buf_fd[MAX_PLANES_PER_BUFFER];
+    MemHeader sMemHdr[MAX_PLANES_PER_BUFFER];
     OMXBase_BufStatus bufSt;
 }OMXBase_BufHdrPvtData;
 

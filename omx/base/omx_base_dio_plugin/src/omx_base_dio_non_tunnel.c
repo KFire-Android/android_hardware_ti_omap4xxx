@@ -22,7 +22,6 @@ typedef struct DIO_NonTunnel_Attrs {
     OMX_DIO_CreateParams sCreateParams;
     OMX_U32              nFlags;
     OMX_PTR              pPipeHandle;
-    OMX_PTR              pBufPool;
     OMX_PTR              pHdrPool;
     OMX_PTR              pPlatformPrivatePool;
 }DIO_NonTunnel_Attrs;
@@ -214,10 +213,12 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Open (OMX_HANDLETYPE handle,
         ((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->bufSt = OWNED_BY_CLIENT;
 
         if( pPort->bIsBufferAllocator) {
-            pPort->pBufferlist[i]->pBuffer = memplugin_alloc(pParams->nBufSize, 1, MEM_CARVEOUT, 0, 0);
-
-            ((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[0] =
-                                            memplugin_share(pPort->pBufferlist[i]->pBuffer);
+            if (OMX_DirInput == pPort->sPortDef.eDir) {
+                pPort->pBufferlist[i]->pBuffer = memplugin_alloc(pParams->nBufSize, 1, MEM_CARVEOUT, 0, 0);
+            } else {
+                MemHeader *h = &(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sMemHdr[0]);
+                pPort->pBufferlist[i]->pBuffer = memplugin_alloc_noheader(h, pParams->nBufSize, 1, MEM_CARVEOUT, 0, 0);
+            }
             if( nLocalComBuffers == 2 ) {
                 OMX_CHECK(OMX_FALSE, OMX_ErrorNotImplemented);
             }
@@ -254,7 +255,7 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Close(OMX_HANDLETYPE handle)
     OMX_DIO_Object      *hDIO = (OMX_DIO_Object *)handle;
     DIO_NonTunnel_Attrs *pContext = NULL;
     OMXBase_Port        *pPort = NULL;
-    OMX_U32             i = 0, nPortIndex = 0, nStartPortNumber = 0, nCompBufs = 0;
+    OMX_U32             i = 0, j =0, nPortIndex = 0, nStartPortNumber = 0, nCompBufs = 0;
     OMX_PTR             pTmpBuffer = NULL;
     OMX_COMPONENTTYPE   *pComp = NULL;
     OMXBaseComp         *pBaseComp = NULL;
@@ -277,20 +278,24 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Close(OMX_HANDLETYPE handle)
             for( i = 0; i < pPort->nCachedBufferCnt; i++ ) {
                 if( pPort->pBufferlist[i] ) {
                     if( pPort->bIsBufferAllocator) {
-                        /*Caling free on the main buffer*/
-                        pTmpBuffer = pPort->pBufferlist[i]->pBuffer;
-                        if( pTmpBuffer ) {
-                            memplugin_free((void*)pTmpBuffer);
+                        if (OMX_DirInput == pPort->sPortDef.eDir) {
+                            /*Caling free on the main buffer*/
+                            pTmpBuffer = pPort->pBufferlist[i]->pBuffer;
+                            if( pTmpBuffer ) {
+                                memplugin_free((void*)pTmpBuffer);
+                            }
+                        } else {
+                            MemHeader *h = &(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sMemHdr[0]);
+                            memplugin_free_noheader(h);
                         }
                         if( nCompBufs == 2 ) {
                             OMX_CHECK(OMX_FALSE, OMX_ErrorNotImplemented);
                         }
                     } else {
-                        if (((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[0] > 0) {
-                            close(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[0]);
-                        }
-                        if (((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[1] > 0) {
-                            close(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->dma_buf_fd[1]);
+                        for ( j = 0; j < MAX_PLANES_PER_BUFFER; j++ ) {
+                            if (((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sMemHdr[j].dma_buf_fd > 0) {
+                                close(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sMemHdr[j].dma_buf_fd);
+                            }
                         }
                     }
                 }

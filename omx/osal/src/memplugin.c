@@ -46,55 +46,73 @@ int memplugin_close()
     return ret;
 }
 
-void *memplugin_alloc(int sz, int height, MemRegion region, int align, int flags)
+static void *memalloc(struct ion_allocation_data *ion_data, int32_t *map_fd, int32_t *share_fd)
 {
     int err = -1;
-    uint32_t len = 0;
-    void *handle;
     void *ptr;
+
+    err = ion_alloc(ion_fd, ion_data->len, ion_data->align, 1 << ION_HEAP_TYPE_CARVEOUT,
+                    ion_data->flags, (struct ion_handle **)&(ion_data->handle));
+    if (err < 0 || !ion_data->handle) {
+        OSAL_ErrorTrace("ION CARVEOUT MEM ALLOC failed[%d]", err);
+        return NULL;
+    }
+
+    err = ion_map(ion_fd, ion_data->handle, ion_data->len,
+                PROT_READ | PROT_WRITE,
+                MAP_SHARED, 0, (unsigned char **)&ptr, map_fd);
+
+    if (err || !ptr) {
+        OSAL_ErrorTrace("ION CARVEOUT MEM MAP failed[%d]", err);
+        return NULL;
+    }
+
+    err = ion_share(ion_fd, ion_data->handle, share_fd);
+    if (err || *share_fd < 0) {
+        OSAL_ErrorTrace("ION CARVEOUT MEM SHARE failed[%d]", err);
+        return NULL;
+    }
+
+    memset(ptr, 0, ion_data->len);
+    return (ptr);
+
+}
+
+static void memfree(struct ion_allocation_data *ion_data, int32_t map_fd, int32_t share_fd)
+{
+    ion_free(ion_fd, ion_data->handle);
+    close(map_fd);
+    close(share_fd);
+    return;
+}
+
+void *memplugin_alloc(int sz, int height, MemRegion region, int align, int flags)
+{
     int32_t map_fd;
     int32_t share_fd;
-    MemHeader *h;
+    struct ion_allocation_data ion_data;
+    int len = 0;
+    MemHeader *h = NULL;
 
     switch(region) {
     case MEM_CARVEOUT:
-        len = sz + sizeof (MemHeader);
-        len = (len + LINUX_PAGE_SIZE - 1) & ~(LINUX_PAGE_SIZE - 1);
+        ion_data.len = sz + sizeof (MemHeader);
+        ion_data.len = (ion_data.len + LINUX_PAGE_SIZE - 1) & ~(LINUX_PAGE_SIZE - 1);
+        ion_data.align = align;
+        ion_data.heap_id_mask = 1 << ION_HEAP_TYPE_CARVEOUT;
+        ion_data.flags = flags;
 
-        err = ion_alloc(ion_fd, len, align, 1 << ION_HEAP_TYPE_CARVEOUT,
-                        flags, (struct ion_handle **)&handle);
-        if (err < 0 || !handle) {
-            OSAL_ErrorTrace("ION CARVEOUT MEM ALLOC failed[%d]", err);
-            return NULL;
-        }
+        h = (MemHeader*)memalloc(&ion_data, &map_fd, &share_fd);
 
-        err = ion_map(ion_fd, handle, len,
-                    PROT_READ | PROT_WRITE,
-                    MAP_SHARED, 0, (unsigned char **)&ptr, &map_fd);
-
-        if (err || !ptr) {
-            OSAL_ErrorTrace("ION CARVEOUT MEM MAP failed[%d]", err);
-            return NULL;
-        }
-
-        err = ion_share(ion_fd, handle, &share_fd);
-        if (err || share_fd < 0) {
-            OSAL_ErrorTrace("ION CARVEOUT MEM SHARE failed[%d]", err);
-            return NULL;
-        }
-
-
-        h = (MemHeader*)ptr;
         h->size = sz;
         h->ptr = (uint8_t *)h + sizeof(MemHeader);
         h->dma_buf_fd = share_fd;
         h->region = MEM_CARVEOUT;
         h->offset = 0;
         h->map_fd = map_fd;
-        h->handle = (void*)handle;
+        h->handle = (void*)ion_data.handle;
+        return (h->ptr);
 
-        memset(H2P(h), 0, sz);
-        return (H2P(h));
     break;
     default:
         OSAL_ErrorTrace("Invalid memory type in ION mem alloc[%d]", region);
@@ -104,26 +122,22 @@ void *memplugin_alloc(int sz, int height, MemRegion region, int align, int flags
 
 void memplugin_free(void *ptr)
 {
-    int err = 0;
+    struct ion_allocation_data ion_data;
+
     if (!ptr)
         return;
 
     MemHeader *h = (MemHeader*)P2H(ptr);
     switch(h->region) {
     case MEM_CARVEOUT:
-        err = ion_free(ion_fd, h->handle);
-        if (err < 0) {
-            OSAL_ErrorTrace("ION CARVEOUT MEM FREE failed[%d]", err);
-            return -1;
-        }
-        close(h->map_fd);
-        close(h->dma_buf_fd);
+        ion_data.handle = h->handle;
+        memfree(&ion_data, h->map_fd, h->dma_buf_fd);
         munmap(h, h->size+sizeof(MemHeader));
     break;
     default:
         OSAL_ErrorTrace("Invalid memory type in ION mem free[%d]", h->region);
     }
-    return 0;
+    return;
 }
 
 int32_t memplugin_share(void *ptr)
@@ -147,3 +161,55 @@ int memplugin_xlate(int alloc_fd, int* share_fd)
     return ret;
 }
 
+void *memplugin_alloc_noheader(MemHeader *memHdr, int sz, int height, MemRegion region, int align, int flags)
+{
+    int32_t map_fd;
+    int32_t share_fd;
+    struct ion_allocation_data ion_data;
+    MemHeader *h = memHdr;
+    if (!memHdr)
+        return NULL;
+
+    switch(region) {
+    case MEM_CARVEOUT:
+        ion_data.len = sz;
+        ion_data.len = (ion_data.len + LINUX_PAGE_SIZE - 1) & ~(LINUX_PAGE_SIZE - 1);
+        ion_data.align = align;
+        ion_data.heap_id_mask = 1 << ION_HEAP_TYPE_CARVEOUT;
+        ion_data.flags = flags;
+
+        h->ptr = memalloc(&ion_data, &map_fd, &share_fd);
+        h->size = sz;
+        h->dma_buf_fd = share_fd;
+        h->region = MEM_CARVEOUT;
+        h->offset = 0;
+        h->map_fd = map_fd;
+        h->handle = (void*)ion_data.handle;
+
+        return (h->ptr);
+
+    break;
+    default:
+        OSAL_ErrorTrace("Invalid memory type in ION mem alloc[%d]", region);
+    }
+    return NULL;
+}
+
+void memplugin_free_noheader(MemHeader *memHdr)
+{
+    struct ion_allocation_data ion_data;
+    if (!memHdr)
+        return;
+
+    MemHeader *h = memHdr;
+    switch(h->region) {
+    case MEM_CARVEOUT:
+        ion_data.handle = h->handle;
+        memfree(&ion_data, h->map_fd, h->dma_buf_fd);
+        munmap(h->ptr, h->size);
+    break;
+    default:
+        OSAL_ErrorTrace("Invalid memory type in ION mem free[%d]", h->region);
+    }
+    return;
+}
