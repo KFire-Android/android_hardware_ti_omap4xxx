@@ -1,0 +1,311 @@
+From 2ba3c8d5dbdd595c8a31405880178bec5991a791 Mon Sep 17 00:00:00 2001
+From: Sreenidhi Koti Ananda Rao <sreenidhi@ti.com>
+Date: Tue, 15 May 2012 11:53:49 +0530
+Subject: [PATCH] OMAPDSS: PVRSIM: Add PVR Simulator for testing DSSCOMP
+
+Description: The PVR Simulator module is a thin driver which takes
+the request from user & calls the android interface to DSSCOMP &
+registers for the callback & returns it to the user.
+
+Added dependency on dsscomp to the pvrsim target.  This will
+make sure that all of the link dependencies are satisfied.
+This change by Andy.
+
+Change-Id: I200127f017b4708bd99f4a211050412c363e94fd
+Signed-off-by: Sreenidhi Koti <sreenidhi@ti.com>
+Signed-off-by: Andy Gross <andy.gross@ti.com>
+---
+ drivers/video/omap2/dsscomp/Makefile               |    1 +
+ drivers/video/omap2/dsscomp/pvr_simulator/Kconfig  |   11 +
+ drivers/video/omap2/dsscomp/pvr_simulator/Makefile |    6 +
+ .../video/omap2/dsscomp/pvr_simulator/pvr_sim.c    |  223 ++++++++++++++++++++
+ .../video/omap2/dsscomp/pvr_simulator/pvr_sim.h    |    6 +
+ 5 files changed, 247 insertions(+), 0 deletions(-)
+ create mode 100644 drivers/video/omap2/dsscomp/pvr_simulator/Kconfig
+ create mode 100644 drivers/video/omap2/dsscomp/pvr_simulator/Makefile
+ create mode 100644 drivers/video/omap2/dsscomp/pvr_simulator/pvr_sim.c
+ create mode 100644 drivers/video/omap2/dsscomp/pvr_simulator/pvr_sim.h
+
+diff --git a/drivers/video/omap2/dsscomp/Makefile b/drivers/video/omap2/dsscomp/Makefile
+index 96cf8c1..0beffee 100644
+--- a/drivers/video/omap2/dsscomp/Makefile
++++ b/drivers/video/omap2/dsscomp/Makefile
+@@ -2,3 +2,4 @@ obj-$(CONFIG_DSSCOMP) += dsscomp.o
+ dsscomp-y := device.o base.o queue.o
+ dsscomp-y += gralloc.o
+ dsscomp-y += tiler-utils.o
++obj-$(CONFIG_DSSCOMP) += pvr_simulator/
+diff --git a/drivers/video/omap2/dsscomp/pvr_simulator/Kconfig b/drivers/video/omap2/dsscomp/pvr_simulator/Kconfig
+new file mode 100644
+index 0000000..b465229
+--- /dev/null
++++ b/drivers/video/omap2/dsscomp/pvr_simulator/Kconfig
+@@ -0,0 +1,11 @@
++menuconfig PVRSIM
++	tristate "PVR Simulator for DSSCOMP (FOR TESTING ONLY)"
++	depends on DSSCOMP
++	default y
++
++	help
++	  This option is used to test queuing of compositions to DSSCOMP
++	  as if PVR is queing it. So this module is roughly named PVR
++	  simulator. This module is mainly used to exercise the Android path
++	  of queing composition by calling dsscomp_gralloc_queue() function
++	  and signaling the user-space after every composition is released.
+\ No newline at end of file
+diff --git a/drivers/video/omap2/dsscomp/pvr_simulator/Makefile b/drivers/video/omap2/dsscomp/pvr_simulator/Makefile
+new file mode 100644
+index 0000000..5b39baa
+--- /dev/null
++++ b/drivers/video/omap2/dsscomp/pvr_simulator/Makefile
+@@ -0,0 +1,6 @@
++#
++# Makefile for the PVR Simulator
++#
++
++obj-y += pvrsim.o
++pvrsim-y := pvr_sim.o
+diff --git a/drivers/video/omap2/dsscomp/pvr_simulator/pvr_sim.c b/drivers/video/omap2/dsscomp/pvr_simulator/pvr_sim.c
+new file mode 100644
+index 0000000..d12d686
+--- /dev/null
++++ b/drivers/video/omap2/dsscomp/pvr_simulator/pvr_sim.c
+@@ -0,0 +1,223 @@
++
++#include <linux/err.h>
++#include <linux/platform_device.h>
++#include <linux/slab.h>
++#include <linux/device.h>
++#include <linux/file.h>
++#include <linux/mm.h>
++#include <linux/fs.h>
++#include <linux/anon_inodes.h>
++#include <linux/list.h>
++#include <linux/miscdevice.h>
++#include <linux/uaccess.h>
++#include <linux/sched.h>
++#include <linux/syscalls.h>
++#include <linux/types.h>
++#include "../../../drivers/video/omap2/dsscomp/tiler-utils.h"
++#include <asm/cacheflush.h>
++
++#define MODULE_NAME_PVRSIM	"pvrsim"
++
++#include <video/omapdss.h>
++#include <video/dsscomp.h>
++#include <plat/dsscomp.h>
++#include "pvr_sim.h"
++
++/* signal information */
++static struct siginfo sinfo;
++/* user program process id */
++static pid_t  pid;
++static struct task_struct *task;
++static struct dsscomp_setup_dispc_data dispc;
++static void *cookie;
++
++static DEFINE_MUTEX(mtx);
++
++/**
++ * PVR Sim Device Driver
++ *
++ * @dev:   misc device base
++ */
++struct pvrsim_dev {
++	struct miscdevice dev;
++};
++
++static void dsscomp_proxy_commandcomplete(void *cookie, int i)
++{
++	mutex_lock(&mtx);
++
++	if (!pid) {
++		pr_err("pvrsim: Other client to DSSCOMP has released the held Buffer\n");
++		mutex_unlock(&mtx);
++		return;
++	}
++
++	/* sending SIGPOLL signal to the user program */
++	send_sig_info(SIGPOLL, &sinfo, task);
++	mutex_unlock(&mtx);
++}
++
++static int simulate_post2(struct dsscomp_setup_dispc_data *dispc)
++{
++	/* physical address info for the overlays */
++	struct tiler_pa_info *pas[5];
++	u32 i, j;
++
++	if (dispc->num_ovls == 0) {
++		pr_err("pvrsim: must have at least one layer\n");
++		return -1;
++	}
++	/* convert virtual addresses to physical and get tiler pa infos */
++	for (i = 0; i < dispc->num_ovls; i++) {
++		struct dss2_ovl_info *overlayinfo = dispc->ovls + i;
++		u32 addr = (u32) overlayinfo->address;
++
++		pas[i] = NULL;
++
++		/* assume virtual NV12 for now */
++		if (overlayinfo->cfg.color_mode == OMAP_DSS_COLOR_NV12) {
++			if (overlayinfo->uv_address)
++				overlayinfo->uv = tiler_virt2phys((u32) overlayinfo->uv_address);
++			else
++				overlayinfo->uv = tiler_virt2phys(addr + overlayinfo->cfg.height * overlayinfo->cfg.stride);
++		} else {
++			overlayinfo->uv = 0;
++		}
++
++		/* Get the physical address */
++		overlayinfo->ba = tiler_virt2phys(addr);
++
++		/* Get the physical pages for user-buffer*/
++		if ((overlayinfo->ba < 0x60000000 || overlayinfo->ba >= 0x80000000) && overlayinfo->ba) {
++			/* Flush Virtual address range --> Not needed mandotorily */
++			dmac_flush_range((void *)addr, ((void *)addr + overlayinfo->cfg.height * overlayinfo->cfg.stride));
++			pas[i] = user_block_to_pa(addr & PAGE_MASK, PAGE_ALIGN(overlayinfo->cfg.height * overlayinfo->cfg.stride + (addr & ~PAGE_MASK)) >> PAGE_SHIFT);
++			/* Indicate to DSSCOMP the memory is non-contiguous */
++			overlayinfo->uv = overlayinfo->ba;
++			overlayinfo->ba = 0;
++			/* Flush Physical pages */
++			for (j = 0; j < pas[i]->num_pg; j++)
++				outer_flush_range(pas[i]->mem[j], (pas[i]->mem[j] + (4 * 1024)));
++		}
++	}
++
++	/* Get the pid of the calling process */
++	if (pid == 0) {
++		pid = current->pid;
++		task = find_task_by_vpid(pid);
++	}
++
++	/* Queue the composition */
++	dsscomp_gralloc_queue(dispc, pas, 0, dsscomp_proxy_commandcomplete, cookie);
++
++	for (i = 0; i < dispc->num_ovls; i++)
++		if (pas[i])
++			tiler_pa_free(pas[i]);
++
++	return 0;
++}
++
++static long pvrsim_ioctl(struct file *filep, unsigned int cmd, unsigned long arg)
++{
++	int r = 0;
++	void __user *ptr = (void __user *)arg;
++
++	switch (cmd) {
++	case PVR_SIM_POST2:
++		r = copy_from_user(&dispc, ptr, sizeof(dispc)) ? : simulate_post2(&dispc);
++		break;
++	case PVR_SIM_LAST_BUFFER:
++		/* Resetting the pid number */
++		pid = 0;
++		break;
++	default:
++		r = -EINVAL;
++		pr_err("pvrsim: undefined ioctl\n");
++		break;
++	}
++	return r;
++}
++
++/* No private data to be filled */
++static int pvrsim_open(struct inode *inode, struct file *filep)
++{
++	return 0;
++}
++
++static const struct file_operations pvrsim_fops = {
++	.owner		= THIS_MODULE,
++	.open		= pvrsim_open,
++	.unlocked_ioctl = pvrsim_ioctl,
++};
++
++static int pvrsim_probe(struct platform_device *pdev)
++{
++	int ret;
++	struct pvrsim_dev *cdev = kzalloc(sizeof(*cdev), GFP_KERNEL);
++	if (!cdev) {
++		pr_err("pvrsim: failed to allocate device.\n");
++		return -ENOMEM;
++	}
++	cdev->dev.minor = MISC_DYNAMIC_MINOR;
++	cdev->dev.name = "pvrsim";
++	cdev->dev.mode = 0777;
++	cdev->dev.fops = &pvrsim_fops;
++
++	ret = misc_register(&cdev->dev);
++	if (ret) {
++		pr_err("pvrsim: failed to register misc device.\n");
++		return ret;
++	}
++
++	platform_set_drvdata(pdev, cdev);
++
++	/* init */
++	memset(&sinfo, 0, sizeof(struct siginfo));
++	sinfo.si_signo = SIGPOLL;
++	sinfo.si_code  = POLL_MSG;
++
++	pr_info("pvrsim: initializing.\n");
++
++	return 0;
++}
++
++static int pvrsim_remove(struct platform_device *pdev)
++{
++	struct pvrsim_dev *cdev = platform_get_drvdata(pdev);
++	misc_deregister(&cdev->dev);
++	kfree(cdev);
++	printk(KERN_INFO "Closing the pvrsim\n");
++	return 0;
++}
++
++static struct platform_driver pvrsim_driver = {
++	.probe = pvrsim_probe,
++	.remove = pvrsim_remove,
++	.driver = { .name = "pvrsim" }
++};
++
++static struct platform_device pvrsim_pdev = {
++	.name = "pvrsim",
++	.id = -1
++};
++
++static int __init pvrsim_init(void)
++{
++	int r = platform_driver_register(&pvrsim_driver);
++	if (r)
++		return r;
++
++	r = platform_device_register(&pvrsim_pdev);
++	if (r)
++		platform_driver_unregister(&pvrsim_driver);
++	return r;
++}
++
++static void __exit pvrsim_exit(void)
++{
++	platform_device_unregister(&pvrsim_pdev);
++	platform_driver_unregister(&pvrsim_driver);
++}
++
++module_init(pvrsim_init);
++module_exit(pvrsim_exit);
+diff --git a/drivers/video/omap2/dsscomp/pvr_simulator/pvr_sim.h b/drivers/video/omap2/dsscomp/pvr_simulator/pvr_sim.h
+new file mode 100644
+index 0000000..48c3f06
+--- /dev/null
++++ b/drivers/video/omap2/dsscomp/pvr_simulator/pvr_sim.h
+@@ -0,0 +1,6 @@
++
++
++/* IOCTLS */
++#define PVR_SIM_POST2		_IOWR('O', 135, struct dsscomp_setup_dispc_data)
++#define PVR_SIM_LAST_BUFFER	_IO('O', 136)
++
+-- 
+1.7.1
+

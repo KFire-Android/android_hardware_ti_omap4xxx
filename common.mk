@@ -35,4 +35,5 @@ PRODUCT_PACKAGES += \
     libomxcameraadapter \
     smc_pa_ctrl \
     tf_daemon \
-    libtf_crypto_sst
+    libtf_crypto_sst \
+    dsscomp_test

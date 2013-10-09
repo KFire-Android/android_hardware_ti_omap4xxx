@@ -1,0 +1,32 @@
+Commands to test OMAP ION module. 
+
+Refer to DOORS or
+TMP(http://opbu.itg.ti.com/tmp/TestCaseDashBoard.ASPX) for details
+on what the following commands do.
+
+./iontest --alloc -l 1048576 -f 4
+./iontest --alloc -t -w 2073600 -h 1 -r 3
+./iontest --alloc -t -w 1920 -h 1080 -r 0
+./iontest --alloc -t -w 1920 -h 1080 -r 1
+./iontest --alloc -t -w 1920 -h 1080 -r 2
+./iontest --map -l 1048576 -f 4
+./iontest --map -t -w 2073600 -h 1 -r 3
+./iontest --map -t -w 1920 -h 1080 -r 0
+./iontest --map -t -w 1920 -h 1080 -r 1
+./iontest --map -t -w 1920 -h 1080 -r 2
+./iontest2 --alloc -l 1048576 -f 4 -n 10
+./iontest2 --alloc -t -w 2073600 -h 1 -r 3 -n 10
+./iontest2 --alloc -t -w 1920 -h 1080 -r 0 -n 10
+./iontest2 --alloc -t -w 1920 -h 1080 -r 1 -n 10
+./iontest2 --alloc -t -w 1280 -h 720 -r 2 -n 10
+./iontest2 --map -l 1048576 -f 4 -n 10
+./iontest2 --map -t -w 2073600 -h 1 -r 3 -n 10
+./iontest2 --map -t -w 1920 -h 1080 -r 0 -n 10
+./iontest2 --map -t -w 1920 -h 1080 -r 1 -n 10
+./iontest2 --map -t -w 1280 -h 720 -r 2 -n 10
+./iontest2 --custom 1 -l 1048570 -f 4
+./iontest2 --custom 1 -t -w 2073600 -h 1 -r 3
+./iontest2 --custom 1 -t -w 1920 -h 1080 -r 0
+./iontest2 --custom 1 -t -w 1920 -h 1080 -r 1
+./iontest2 --custom 1 -t -w 1280 -h 720 -r 2
+./iontest2 --alloc -l 1048576 -f 4 -n 10 -i 10000

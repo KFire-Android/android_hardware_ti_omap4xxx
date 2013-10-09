@@ -1,0 +1,124 @@
+From db0ada2884892e64253e95ec99697f363cdd3e1e Mon Sep 17 00:00:00 2001
+From: Muralidhar Dixit <murali.dixit@ti.com>
+Date: Fri, 16 Dec 2011 12:57:32 +0530
+Subject: [PATCH 2/2] OMAP: DSSCOMP: adding IOCTL for setting display specific settings
+
+---
+ drivers/video/omap2/dsscomp/device.c |   30 ++++++++++++++++++++++++++++++
+ include/video/dsscomp.h              |   25 +++++++++++++++++++++++++
+ 2 files changed, 55 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/video/omap2/dsscomp/device.c b/drivers/video/omap2/dsscomp/device.c
+index e931795..3fce4bf 100755
+--- a/drivers/video/omap2/dsscomp/device.c
++++ b/drivers/video/omap2/dsscomp/device.c
+@@ -445,6 +445,27 @@ static long setup_display(struct dsscomp_dev *cdev,
+ 		return 0;
+ }
+ 
++static long setup_display_interface(struct dsscomp_dev *cdev,
++			struct dsscomp_setup_display_interface_data *dis)
++{
++	struct omap_dss_device *dev;
++	/* get display */
++	if (dis->ix >= cdev->num_displays)
++		return -EINVAL;
++	dev = cdev->displays[dis->ix];
++	if (!dev)
++		return -EINVAL;
++	if(dev->driver->set_display_interface){
++		return  dev->driver->set_display_interface(dev,
++			(union omap_display_interface_data ) dis->data);
++	}
++	else
++		return 0;
++}
++
++
++
++
+ static void fill_cache(struct dsscomp_dev *cdev)
+ {
+ 	unsigned long i;
+@@ -495,6 +516,7 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+ 		struct dsscomp_display_info dis;
+ 		struct dsscomp_check_ovl_data chk;
+ 		struct dsscomp_setup_display_data sdis;
++		struct dsscomp_setup_display_interface_data idis;
+ 	} u;
+ 
+ 	dsscomp_gralloc_init(cdev);
+@@ -544,7 +566,15 @@ static long comp_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+ 	{
+ 		r = copy_from_user(&u.sdis, ptr, sizeof(u.sdis)) ? :
+ 		    setup_display(cdev, &u.sdis);
++		break;
+ 	}
++	case DSSCIOC_SETUP_DISPLAY_INTERFACE:
++        {
++                r = copy_from_user(&u.idis, ptr, sizeof(u.idis)) ? :
++                    setup_display_interface(cdev, &u.idis);
++		break;
++        }
++
+ 	default:
+ 		r = -EINVAL;
+ 	}
+diff --git a/include/video/dsscomp.h b/include/video/dsscomp.h
+index 213e948..4b79765 100644
+--- a/include/video/dsscomp.h
++++ b/include/video/dsscomp.h
+@@ -163,6 +163,21 @@ struct s3d_disp_info {
+ 	unsigned int gap;
+ };
+ 
++enum hdmi_deep_color_mode {
++        HDMI_DEEP_COLOR_24BIT = 0,
++        HDMI_DEEP_COLOR_30BIT = 1,
++        HDMI_DEEP_COLOR_36BIT = 2,
++};
++
++struct omap_hdmi_data {
++        enum hdmi_deep_color_mode deep_color;
++        __u32 lrfr;
++};
++
++union omap_display_interface_data {
++        struct omap_hdmi_data hdmi;  /*HDMI specific data*/
++};
++
+ #endif
+ 
+ /* copy of fb_videomode */
+@@ -506,6 +521,14 @@ struct dsscomp_check_ovl_data {
+ 	struct dss2_ovl_info ovl;
+ };
+ 
++/* ioctl: DSSCOMP_SETUP_DISPLAY_INTERFACE, struct dsscomp_setup_display_interface_data
++*  Returns: 0 on success, non-0 error value on failure.
++*/
++struct dsscomp_setup_display_interface_data {
++        __u32 ix;                       /* display index (sysfs/display#) */
++        union omap_display_interface_data data; /*Display interface specific data*/
++};
++
+ /*
+  * This structure is used to set up the entire DISPC (all managers),
+  * and is analogous to dsscomp_setup_mgr_data.
+@@ -570,6 +593,7 @@ struct dsscomp_display_info {
+ 	struct dsscomp_videomode modedb[];	/* display supported timings */
+ };
+ 
++
+ /*
+  * ioctl: DSSCIOC_SETUP_DISPLAY, struct dsscomp_setup_display_data
+  *
+@@ -623,4 +647,5 @@ struct dsscomp_wait_data {
+ 
+ #define DSSCIOC_SETUP_DISPC	_IOW('O', 133, struct dsscomp_setup_dispc_data)
+ #define DSSCIOC_SETUP_DISPLAY	_IOW('O', 134, struct dsscomp_setup_display_data)
++#define DSSCIOC_SETUP_DISPLAY_INTERFACE   _IOW('O', 135, struct dsscomp_setup_display_interface_data)
+ #endif
+-- 
+1.7.1
+

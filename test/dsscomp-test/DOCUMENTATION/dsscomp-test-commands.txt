@@ -1,0 +1,153 @@
+Note 1:
+-------
+For TV out test cases: use an additional parameter of disp_id=1
+while executing the test case wherever applicable
+(or)
+modify the DEFAULT_DISPLAY to TV_OUT in dsscomp_test.h before
+compiling the test case
+
+Note 2:
+-------
+Please make sure that all the test images are available in the same folder as test binary
+By default the following test images are used for various test cases:
+
+TEST_IMAGES/640X480/butterfly.rgb32 	- ARGB32 image 640 * 480
+TEST_IMAGES/640X480/xena.uyvy		- uyvy image 640 * 480
+TEST_IMAGES/640X480/xena.yuv		- NV12 image 640 * 480
+
+(all available in dsscomp-test/TEST_IMAGES directory)
+These test cases uses single frame of the NV12 images,
+even though there are multiple frames in the NV12 images
+(with ".yuv" extension) at dsscomp-test/TEST_IMAGES
+
+=======================
+
+Execution of test cases:
+
+./dsscomp_test  test=2		/* Query display info */
+./dsscomp_test  test=3		/* Check overlay configuration */    
+./dsscomp_test  test=4		/* Play video file or display a 2D image */
+
+
+./dsscomp_test  test=11 rotation=0 mirror=0 /* Rotation and/or mirroring */
+./dsscomp_test  test=11 rotation=0 mirror=1 /* Rotation and/or mirroring */
+./dsscomp_test  test=11 rotation=1 mirror=0 /* Rotation and/or mirroring */
+./dsscomp_test  test=11 rotation=1 mirror=1 /* Rotation and/or mirroring */
+./dsscomp_test  test=11 rotation=2 mirror=0 /* Rotation and/or mirroring */
+./dsscomp_test  test=11 rotation=2 mirror=1 /* Rotation and/or mirroring */
+./dsscomp_test  test=11 rotation=3 mirror=0 /* Rotation and/or mirroring */
+./dsscomp_test  test=11 rotation=3 mirror=1 /* Rotation and/or mirroring */
+
+
+./dsscomp_test  test=12 crop_x=15 crop_y=20 crop_w=75 crop_h=75 	/* Cropping */
+./dsscomp_test  test=12 crop_x=10 crop_y=20 crop_w=130 crop_h=130 	/* Cropping */
+./dsscomp_test  test=12 crop_x=10 crop_y=20 crop_w=400 crop_h=400 	/* Cropping */
+
+./dsscomp_test  test=8	/* Trans color key - always result is marked "X"
+			 * excluded in ICS environment as alpha blending is
+			 * always 1 in alpha only mode.
+			 * See set_dss_mgr_info() function in
+			 * drivers/video/omap2/dsscomp/base.c of kernel source
+			 * code for alpha_only mode
+			 */
+
+./dsscomp_test  test=9 z0order=0 z1order=1 z2order=3 z3order=2  /* Zorder or multi pipeline test - green shall come first */
+./dsscomp_test  test=9 z0order=1 z1order=3 z2order=2 z3order=0  /* Zorder or multi pipeline test - red shall come first */
+./dsscomp_test  test=9 z0order=3 z1order=0 z2order=1 z3order=2  /* Zorder or multi pipeline test - white shall come first */
+./dsscomp_test  test=9 z0order=1 z1order=0 z2order=2 z3order=3  /* Zorder or multi pipeline test - black shall come first */
+
+./dsscomp_test  test=17 default_color=2147483647 	/* Default color with multi pipelines -  White background color */
+./dsscomp_test  test=17 default_color=1247483647 	/* Default color with multi pipelines -  blue background color */
+./dsscomp_test  test=17 default_color=623741823 	/* Default color with multi pipelines -  green background color */
+./dsscomp_test  test=17 default_color=0 		/* Default color with multi pipelines -  Black background color */
+
+./dsscomp_test  test=10 up=1 factor=4 sampling_cordinate=1	/* Up or down scaling test */		
+./dsscomp_test  test=10 up=1 factor=4 sampling_cordinate=2	/* Up or down scaling test */
+./dsscomp_test  test=10 up=1 factor=4 sampling_cordinate=0	/* Up or down scaling test */
+./dsscomp_test  test=10 up=1 factor=2 sampling_cordinate=1	/* Up or down scaling test */
+./dsscomp_test  test=10 up=1 factor=2 sampling_cordinate=2	/* Up or down scaling test */
+./dsscomp_test  test=10 up=1 factor=2 sampling_cordinate=0	/* Up or down scaling test */
+
+./dsscomp_test  test=10 up=0 factor=4 sampling_cordinate=1	/* Up or down scaling test */
+./dsscomp_test  test=10 up=0 factor=4 sampling_cordinate=2	/* Up or down scaling test */
+./dsscomp_test  test=10 up=0 factor=4 sampling_cordinate=0	/* Up or down scaling test */
+./dsscomp_test  test=10 up=0 factor=2 sampling_cordinate=1	/* Up or down scaling test */
+./dsscomp_test  test=10 up=0 factor=2 sampling_cordinate=2	/* Up or down scaling test */
+./dsscomp_test  test=10 up=0 factor=2 sampling_cordinate=0	/* Up or down scaling test */
+
+./dsscomp_test  test=14 premult_alpha=1 			/* Pre-mult-apha test */
+
+./dsscomp_test  test=13 global_alpha=255 alpha_blending=1	/* Global alpha blending */
+./dsscomp_test  test=13 global_alpha=100 alpha_blending=1	/* Global alpha blending */
+./dsscomp_test  test=13 global_alpha=150 alpha_blending=1	/* Global alpha blending */
+./dsscomp_test  test=13 global_alpha=50 alpha_blending=1	/* Global alpha blending */
+
+./dsscomp_test  test=16		/* Dynamic display on all available displays */
+./dsscomp_test  test=1		/* Simultaneous display on all available TV and LCD2*/
+
+./dsscomp_test  test=19		/* Any image resolution pass with color_format, file name & input width/height */
+./dsscomp_test  test=23		/* Negative test ./dsscomp_test  test=for supporting only LCD and TV only */	-> PASS
+./dsscomp_test  test=24		/* Negative test ./dsscomp_test  test=for invalid piepline number */		-> PASS
+./dsscomp_test  test=26		/* Negative test ./dsscomp_test  test=for invalid image width/height */		-> PASS
+./dsscomp_test  test=27		/* Negative test ./dsscomp_test  test=for invalid disp id to query display */	-> PASS
+./dsscomp_test  test=28		/* Negative test ./dsscomp_test  test=for invalid zorder */			-> PASS
+./dsscomp_test  test=29		/* Negative test ./dsscomp_test  test=for invalid trans key settings */		-> PASS
+
+./dsscomp_test  test=30 up=1 factor=4 sampling_cordinate=1	/* Scaled output greater than display resolution */
+./dsscomp_test  test=30 up=1 factor=4 sampling_cordinate=2
+./dsscomp_test  test=30 up=1 factor=4 sampling_cordinate=0
+./dsscomp_test  test=30 up=1 factor=2 sampling_cordinate=1
+./dsscomp_test  test=30 up=1 factor=2 sampling_cordinate=2
+./dsscomp_test  test=30 up=1 factor=2 sampling_cordinate=0
+
+./dsscomp_test  test=31		/* Negative test for rotation of non-tiler 2D buffer */
+
+./dsscomp_test  test=25		/* This test case would result in a crash. Negative test for invalid color format */			 
+				 
+
+./dsscomp_test  test=7	format=14			/* Different color formats - currently NV12 */
+./dsscomp_test  test=21 format=14 rotation=0 mirror=0	/* Rotation of NV12 format */
+./dsscomp_test  test=21 format=14 rotation=0 mirror=1	/* Rotation of NV12 format */
+./dsscomp_test  test=21 format=14 rotation=1 mirror=0 	/* Rotation of NV12 format */
+./dsscomp_test  test=21 format=14 rotation=1 mirror=1	/* Rotation of NV12 format */
+./dsscomp_test  test=21 format=14 rotation=2 mirror=0 	/* Rotation of NV12 format */
+./dsscomp_test  test=21 format=14 rotation=2 mirror=1 	/* Rotation of NV12 format */
+./dsscomp_test  test=21 format=14 rotation=3 mirror=0 	/* Rotation of NV12 format */
+./dsscomp_test  test=21 format=14 rotation=3 mirror=1   /* Rotation of NV12 format */
+./dsscomp_test  test=22 format=14			/* Color conversion matrixYCbCr to RGB */
+
+./dsscomp_test test=7 format=10 		/* To test UYVY format image */
+./dsscomp_test test=7 format=14 		/* To test NV12 format image */
+./dsscomp_test test=7 format=11 		/* To test ARGB32 format image */
+
+
+./dsscomp_test  test=34 up=1 factor=4 sampling_cordinate=1	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=1 factor=4 sampling_cordinate=2	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=1 factor=4 sampling_cordinate=0	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=1 factor=2 sampling_cordinate=1	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=1 factor=2 sampling_cordinate=2	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=1 factor=2 sampling_cordinate=0	/* NV12 Up or down scaling test */
+
+./dsscomp_test  test=34 up=0 factor=4 sampling_cordinate=1	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=0 factor=4 sampling_cordinate=2	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=0 factor=4 sampling_cordinate=0	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=0 factor=2 sampling_cordinate=1	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=0 factor=2 sampling_cordinate=2	/* NV12 Up or down scaling test */
+./dsscomp_test  test=34 up=0 factor=2 sampling_cordinate=0	/* NV12 Up or down scaling test */
+
+./dsscomp_test  test=35 up=1 factor=4 sampling_cordinate=1	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=1 factor=4 sampling_cordinate=2	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=1 factor=4 sampling_cordinate=0	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=1 factor=2 sampling_cordinate=1	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=1 factor=2 sampling_cordinate=2	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=1 factor=2 sampling_cordinate=0	/* UYVY Up or down scaling test */
+
+./dsscomp_test  test=35 up=0 factor=4 sampling_cordinate=1	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=0 factor=4 sampling_cordinate=2	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=0 factor=4 sampling_cordinate=0	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=0 factor=2 sampling_cordinate=1	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=0 factor=2 sampling_cordinate=2	/* UYVY Up or down scaling test */
+./dsscomp_test  test=35 up=0 factor=2 sampling_cordinate=0	/* UYVY Up or down scaling test */
+
+/* Kernel API Test cases - see PVR-simulator */
+Please see DOCUMENTATION/pvr-simulator-readme.txt

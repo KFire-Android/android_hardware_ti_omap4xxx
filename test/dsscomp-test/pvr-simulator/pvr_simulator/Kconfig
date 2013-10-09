@@ -1,0 +1,11 @@
+menuconfig PVRSIM
+	tristate "PVR Simulator for DSSCOMP (FOR TESTING ONLY)"
+	depends on DSSCOMP
+	default y
+
+	help
+	  This option is used to test queuing of compositions to DSSCOMP
+	  as if PVR is queing it. So this module is roughly named PVR
+	  simulator. This module is mainly used to exercise the Android path
+	  of queing composition by calling dsscomp_gralloc_queue() function
+	  and signaling the user-space after every composition is released.
