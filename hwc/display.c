@@ -577,6 +577,9 @@ int init_primary_display(omap_hwc_device_t *hwc_dev)
 
     switch (fb_info.channel) {
         case OMAP_DSS_CHANNEL_LCD:
+	case OMAP_DSS_CHANNEL_LCD2:
+	case OMAP_DSS_CHANNEL_LCD3:
+	    ALOGE("channel id %d",fb_info.channel);
             err = init_primary_lcd_display(hwc_dev, xres, yres, &fb_info);
             break;
         case OMAP_DSS_CHANNEL_DIGIT:
