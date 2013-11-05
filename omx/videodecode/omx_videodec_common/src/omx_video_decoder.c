@@ -1335,7 +1335,7 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
                 pVidDecComp->sBase.pPvtData->fpDioSend(hComponent,
                                                 OMX_VIDDEC_INPUT_PORT, pInBufHeader);
                 }
-                if( pInBufHeader != NULL && (pInBufHeader->nFlags & OMX_BUFFERFLAG_EOS) &&
+                else if( pInBufHeader != NULL && (pInBufHeader->nFlags & OMX_BUFFERFLAG_EOS) &&
                         pVidDecComp->nOutPortReconfigRequired != 1 ) {
                     pInBufHeader->nFilledLen
                                 = pInBufHeader->nFilledLen - pDecOutArgs->bytesConsumed - pInBufHeader->nOffset;
