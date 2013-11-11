@@ -143,9 +143,9 @@ OSAL_ERROR OSAL_WriteToFrontOfPipe(void *pPipe, void *pMessage, uint32_t size, i
 
         /*Update Total bytes in pipe */
         pHandle->totalBytesInPipe += size;
+        OSAL_Free(tempPtr);
     }
 
-    OSAL_Free(tempPtr);
     return OSAL_ErrNone;
 }
 
