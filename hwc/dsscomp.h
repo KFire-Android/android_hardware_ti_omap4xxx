@@ -22,7 +22,11 @@
 #include <video/dsscomp.h>
 
 #define MAX_DSS_MANAGERS 3
+#ifdef EARLYCAMERA_IPU
+#define MAX_DSS_OVERLAYS 3
+#else
 #define MAX_DSS_OVERLAYS 4
+#endif
 #define NUM_NONSCALING_OVERLAYS 1
 
 typedef struct omap_hwc_device omap_hwc_device_t;
