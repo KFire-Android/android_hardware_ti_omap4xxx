@@ -24,11 +24,12 @@
 
 #include "layer.h"
 
-#define MAX_DISPLAYS 3
+#define MAX_DISPLAYS 4
 #define MAX_DISPLAY_CONFIGS 32
 #define EXTERNAL_DISPLAY_BACK_BUFFERS 2
 #define MAX_COMPOSITION_BUFFERS 32
 #define MAX_COMPOSITION_LAYERS MAX_COMPOSITION_BUFFERS
+#define HWC_DISPLAY_SECONDARY HWC_DISPLAY_EXTERNAL+1
 
 struct ion_handle;
 typedef struct omap_hwc_device omap_hwc_device_t;
@@ -56,6 +57,7 @@ enum disp_type {
     DISP_TYPE_LCD,
     DISP_TYPE_HDMI,
     DISP_TYPE_WFD,
+    DISP_TYPE_SEC_LCD,
 };
 
 enum disp_mode {
@@ -67,6 +69,7 @@ enum disp_mode {
 enum disp_role {
     DISP_ROLE_PRIMARY,
     DISP_ROLE_EXTERNAL,
+    DISP_ROLE_SECONDARY,
 };
 
 struct composition {
@@ -129,6 +132,7 @@ struct primary_lcd_display {
     primary_display_t primary;
 };
 typedef struct primary_lcd_display primary_lcd_display_t;
+typedef struct primary_lcd_display secondary_lcd_display_t;
 
 struct hdmi_display {
     display_t base;
@@ -177,6 +181,7 @@ void reset_primary_display(omap_hwc_device_t *hwc_dev);
 primary_display_t *get_primary_display_info(omap_hwc_device_t *hwc_dev);
 
 int add_external_hdmi_display(omap_hwc_device_t *hwc_dev);
+int add_secondary_display(omap_hwc_device_t *hwc_dev);
 void remove_external_hdmi_display(omap_hwc_device_t *hwc_dev);
 struct ion_handle *get_external_display_ion_fb_handle(omap_hwc_device_t *hwc_dev);
 

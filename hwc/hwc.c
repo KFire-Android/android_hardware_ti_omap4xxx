@@ -219,6 +219,7 @@ int set_best_hdmi_mode(omap_hwc_device_t *hwc_dev, int disp, uint32_t xres, uint
 static void reserve_overlays_for_displays(omap_hwc_device_t *hwc_dev)
 {
     display_t *primary_display = hwc_dev->displays[HWC_DISPLAY_PRIMARY];
+    display_t *secondary_display = hwc_dev->displays[HWC_DISPLAY_SECONDARY];
     uint32_t ovl_ix_base = OMAP_DSS_GFX;
     uint32_t max_overlays = MAX_DSS_OVERLAYS;
     uint32_t num_nonscaling_overlays = NUM_NONSCALING_OVERLAYS;
@@ -283,7 +284,8 @@ static void reserve_overlays_for_displays(omap_hwc_device_t *hwc_dev)
      * overlay for each protected layer.
      */
     layer_statistics_t *primary_layer_stats = &primary_display->layer_stats;
-    uint32_t min_primary_overlays = MIN(1 + primary_layer_stats->protected, max_overlays);
+    uint32_t min_primary_overlays =
+	    MIN(((secondary_display) ? 2 : 1) + primary_layer_stats->protected, max_overlays);
 
     /* Share available overlays between primary and external displays. */
     primary_comp->wanted_ovls = MAX(max_overlays / 2, min_primary_overlays);
@@ -313,6 +315,8 @@ static void reserve_overlays_for_displays(omap_hwc_device_t *hwc_dev)
         if (ext_comp->avail_ovls && primary_comp->avail_ovls > ext_comp->avail_ovls)
             primary_comp->avail_ovls = MAX(min_primary_overlays, ext_comp->avail_ovls);
     }
+    if (secondary_display)
+         primary_comp->avail_ovls = MAX(1, primary_comp->avail_ovls >> 1);
 }
 
 static int clone_dss_overlay(omap_hwc_device_t *hwc_dev, int ix, int ext_disp)
@@ -354,6 +358,7 @@ static int clone_dss_overlay(omap_hwc_device_t *hwc_dev, int ix, int ext_disp)
 
     dsscomp->num_ovls++;
     ext_comp->used_ovls++;
+
 
     return 0;
 }
@@ -545,6 +550,50 @@ static void mirror_primary_composition(omap_hwc_device_t *hwc_dev, int disp)
         setup_wb_capture(hwc_dev, disp);
 }
 
+static void mirror_primary_to_secondary(omap_hwc_device_t *hwc_dev)
+{
+    /* Mirror the layers using primary display composition */
+    display_t *primary_display = hwc_dev->displays[HWC_DISPLAY_PRIMARY];
+    display_t *secondary_display = hwc_dev->displays[HWC_DISPLAY_SECONDARY];
+    composition_t *primary_comp = &hwc_dev->displays[HWC_DISPLAY_PRIMARY]->composition;
+    struct dsscomp_setup_dispc_data *dsscomp = &primary_comp->comp_data.dsscomp_data;
+    uint32_t ix;
+
+    if (primary_display->blanked || secondary_display->blanked)
+        return;
+
+    /* Mirror all layers */
+    for (ix = 0; ix < primary_comp->used_ovls; ix++) {
+        struct dss2_ovl_info *ovl = &dsscomp->ovls[dsscomp->num_ovls];
+
+        ALOGD("%s ==> primary_comp->avail_ovls = %d, used_ovls = %d, dsscomp->num_ovls = %d\n",
+              __FUNCTION__,
+              primary_comp->avail_ovls,
+              primary_comp->used_ovls,
+              dsscomp->num_ovls);
+        if (dsscomp->num_ovls >= MAX_DSS_OVERLAYS) {
+            ALOGE("**** cannot clone overlay #%d. using all %d overlays.", ix, dsscomp->num_ovls);
+            return;
+        }
+
+        memcpy(ovl, dsscomp->ovls + ix, sizeof(*ovl));
+
+        ovl->cfg.ix = ix + primary_comp->used_ovls;
+        ovl->cfg.mgr_ix = secondary_display->mgr_ix;
+
+        ovl->addressing = OMAP_DSS_BUFADDR_OVL_IX;
+        ovl->ba = ix;
+        /* Use distinct z values (to simplify z-order checking) */
+        ovl->cfg.zorder += primary_comp->used_ovls;
+        ovl->cfg.win.h = secondary_display->configs->yres;
+        ovl->cfg.win.w = secondary_display->configs->xres;
+    }
+    dsscomp->num_ovls++;
+
+    setup_dsscomp_manager(hwc_dev, HWC_DISPLAY_SECONDARY);
+
+}
+
 static int hwc_prepare_for_display(omap_hwc_device_t *hwc_dev, int disp)
 {
     if (!is_valid_display(hwc_dev, disp))
@@ -728,6 +777,9 @@ static int hwc_prepare_for_display(omap_hwc_device_t *hwc_dev, int disp)
 
     if (debug)
         dump_prepare_info(hwc_dev, disp);
+
+    if ((disp == HWC_DISPLAY_PRIMARY) && hwc_dev->displays[HWC_DISPLAY_SECONDARY])
+        mirror_primary_to_secondary(hwc_dev);
 
     return 0;
 }
@@ -1410,6 +1462,10 @@ static int hwc_device_open(const hw_module_t* module, const char* name, hw_devic
     }
 
     handle_hotplug(hwc_dev);
+
+    err = add_secondary_display(hwc_dev);
+    if (err)
+        ALOGE("unable to open the secondary display ==> err = %d\n", err);
 
     ALOGI("open_device(rgb_order=%d nv12_only=%d)",
         hwc_dev->flags_rgb_order, hwc_dev->flags_nv12_only);

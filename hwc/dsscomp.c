@@ -89,6 +89,9 @@ int get_dsscomp_display_info(omap_hwc_device_t *hwc_dev, int mgr_ix, struct dssc
         ALOGE("Failed to get display %d info (%d)", mgr_ix, errno);
         return -errno;
     }
+    ALOGI(" %s  ==>> getting display info for \n\t display %d"
+	  "\n\t channel(%d), \n\t enabled (%d)\n\n",
+	  __FUNCTION__, mgr_ix, info->channel, info->enabled);
 
     return 0;
 }

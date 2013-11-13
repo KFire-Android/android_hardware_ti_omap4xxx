@@ -708,6 +708,50 @@ primary_display_t *get_primary_display_info(omap_hwc_device_t *hwc_dev)
     return primary;
 }
 
+int add_secondary_display(omap_hwc_device_t *hwc_dev)
+{
+    if (hwc_dev->displays[HWC_DISPLAY_SECONDARY]) {
+        ALOGE("Display %d is already connected", HWC_DISPLAY_SECONDARY);
+        return -EBUSY;
+    }
+
+    int err = 0;
+    struct dsscomp_display_info info;
+    err = get_dsscomp_display_info(hwc_dev, HWC_DISPLAY_SECONDARY, &info);
+    if (err)
+        return err;
+
+    if (!info.enabled)
+        return -ENODEV;
+
+    err = allocate_display(sizeof(secondary_lcd_display_t),
+                           LCD_DISPLAY_CONFIGS,
+                           &hwc_dev->displays[HWC_DISPLAY_SECONDARY]);
+    if (err)
+        return err;
+
+    display_t *display = hwc_dev->displays[HWC_DISPLAY_SECONDARY];
+    display->fb_info = info;
+    display->type = DISP_TYPE_SEC_LCD;
+    display->role = DISP_ROLE_SECONDARY;
+    display->mode = DISP_MODE_LEGACY;
+    display->mgr_ix = HWC_DISPLAY_SECONDARY;
+
+    /* SurfaceFlinger currently doesn't unblank external display on reboot.
+     * Unblank HDMI display by default.
+     * See SurfaceFlinger::readyToRun() function.
+     */
+    display->blanked = false;
+    display->update_transform = true;
+
+    setup_lcd_config(&display->configs[0], info.timings.x_res, info.timings.y_res, &display->fb_info);
+    ALOGI("%s ==> display[%d] ==> xres = %d, yres = %d \n\n",
+           __FUNCTION__, hwc_dev->displays[HWC_DISPLAY_SECONDARY]->fb_info.channel,
+          info.timings.x_res, info.timings.y_res);
+
+    return 0;
+}
+
 int add_external_hdmi_display(omap_hwc_device_t *hwc_dev)
 {
     if (hwc_dev->displays[HWC_DISPLAY_EXTERNAL]) {
@@ -1030,7 +1074,7 @@ bool is_wfd_display(omap_hwc_device_t *hwc_dev, int disp)
 
 bool is_external_display_mirroring(omap_hwc_device_t *hwc_dev, int disp)
 {
-    if (!is_active_display(hwc_dev, disp))
+    if (disp != HWC_DISPLAY_SECONDARY && !is_active_display(hwc_dev, disp))
         return false;
 
     if (hwc_dev->displays[disp]->mode == DISP_MODE_LEGACY)
