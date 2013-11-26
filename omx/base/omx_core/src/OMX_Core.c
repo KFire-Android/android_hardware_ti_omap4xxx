@@ -59,7 +59,12 @@ char              compName[60][200];
 char   *tComponentName[MAXCOMP][MAX_ROLES] =
 {
     /*video decoder */
-    { "OMX.TI.DUCATI1.VIDEO.DECODER"},
+    { "OMX.TI.DUCATI1.VIDEO.DECODER",
+      "video_decoder.mpeg4",
+      "video_decoder.avc",
+      "video_decoder.h263",
+      "video_decoder.mpeg2",
+       NULL },
     /* terminate the table */
     { NULL, NULL },
 };
