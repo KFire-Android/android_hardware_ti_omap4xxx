@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "OMX_MPEG4_VIDDEC"
 #include <omx_mpeg4vd.h>
 
 OMX_ERRORTYPE OMXMPEG4VD_Init(OMX_HANDLETYPE hComponent)

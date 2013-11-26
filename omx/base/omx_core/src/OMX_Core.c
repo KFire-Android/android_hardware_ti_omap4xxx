@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "OMX_CORE"
+
 #include <dlfcn.h>      /* For dynamic loading */
 #include <stdio.h>
 #include <string.h>

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "OMX_BASE_CALLBACKS"
+
 #include <OMX_Core.h>
 #include <omx_base.h>
 

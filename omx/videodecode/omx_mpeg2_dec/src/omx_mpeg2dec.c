@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "OMX_MPEG2_VIDDEC"
+
 #include <omx_mpeg2dec.h>
 
 

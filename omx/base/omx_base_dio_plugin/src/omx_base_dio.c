@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define LOG_TAG "OMX_BASE_DIO"
 
 #include <string.h>
 #include <omx_base.h>

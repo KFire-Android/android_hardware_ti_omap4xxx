@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "OMX_BASE_DIO_NONTUNNEL"
+
 #include <omx_base.h>
 #include <memplugin.h>
 #include <OMX_TI_Custom.h>

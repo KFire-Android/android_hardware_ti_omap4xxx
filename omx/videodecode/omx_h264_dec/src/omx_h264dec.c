@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "OMX_H264_VIDDEC"
+
 #include <omx_h264vd.h>
 #include <omx_video_decoder_internal.h>
 

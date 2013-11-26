@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "OMX_BASE"
+
 #include <string.h>
 #include <OMX_Core.h>
 #include <OMX_Component.h>

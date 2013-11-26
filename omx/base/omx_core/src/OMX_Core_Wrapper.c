@@ -21,7 +21,7 @@
 #include "OMX_ComponentRegistry.h"
 #include "OMX_Core_Wrapper.h"
 
-#define LOG_TAG "OMX_CORE"
+#define LOG_TAG "OMX_CORE_WRAPPER"
 
 /** determine capabilities of a component before acually using it */
 extern OMX_BOOL TIOMXConfigParser(OMX_PTR aInputParameters,

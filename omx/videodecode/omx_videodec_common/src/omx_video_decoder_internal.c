@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "OMX_VIDDEC_INTERNAL"
+
 #include <omx_video_decoder_internal.h>
 
 OMX_ERRORTYPE OMXVidDec_InitFields(OMXVidDecComp *pVidDecComp)
