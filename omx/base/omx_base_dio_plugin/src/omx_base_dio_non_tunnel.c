@@ -215,12 +215,8 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Open (OMX_HANDLETYPE handle,
         ((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->bufSt = OWNED_BY_CLIENT;
 
         if( pPort->bIsBufferAllocator) {
-            if (OMX_DirInput == pPort->sPortDef.eDir) {
-                pPort->pBufferlist[i]->pBuffer = memplugin_alloc(pParams->nBufSize, 1, MEM_CARVEOUT, 0, 0);
-            } else {
-                MemHeader *h = &(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sMemHdr[0]);
-                pPort->pBufferlist[i]->pBuffer = memplugin_alloc_noheader(h, pParams->nBufSize, 1, MEM_CARVEOUT, 0, 0);
-            }
+            MemHeader *h = &(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sMemHdr[0]);
+            pPort->pBufferlist[i]->pBuffer = memplugin_alloc_noheader(h, pParams->nBufSize, 1, MEM_CARVEOUT, 0, 0);
             if( nLocalComBuffers == 2 ) {
                 OMX_CHECK(OMX_FALSE, OMX_ErrorNotImplemented);
             }
@@ -280,16 +276,8 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Close(OMX_HANDLETYPE handle)
             for( i = 0; i < pPort->nCachedBufferCnt; i++ ) {
                 if( pPort->pBufferlist[i] ) {
                     if( pPort->bIsBufferAllocator) {
-                        if (OMX_DirInput == pPort->sPortDef.eDir) {
-                            /*Caling free on the main buffer*/
-                            pTmpBuffer = pPort->pBufferlist[i]->pBuffer;
-                            if( pTmpBuffer ) {
-                                memplugin_free((void*)pTmpBuffer);
-                            }
-                        } else {
-                            MemHeader *h = &(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sMemHdr[0]);
-                            memplugin_free_noheader(h);
-                        }
+                        MemHeader *h = &(((OMXBase_BufHdrPvtData *)(pPort->pBufferlist[i]->pPlatformPrivate))->sMemHdr[0]);
+                        memplugin_free_noheader(h);
                         if( nCompBufs == 2 ) {
                             OMX_CHECK(OMX_FALSE, OMX_ErrorNotImplemented);
                         }
@@ -614,7 +602,7 @@ static OMX_ERRORTYPE OMX_DIO_NonTunnel_Control (OMX_HANDLETYPE handle,
                 goto EXIT;
             }
             pBuffHeader->nFilledLen = pAttrDesc->size;
-            OSAL_Memcpy(pBuffHeader->pBuffer, H2P(pAttrDesc), pAttrDesc->size);
+            OSAL_Memcpy(pBuffHeader->pBuffer, pAttrDesc->ptr, pAttrDesc->size);
             if (((OMXBase_BufHdrPvtData *)(pBuffHeader->pPlatformPrivate))->bufSt != OWNED_BY_CLIENT) {
                 ((OMXBase_BufHdrPvtData *)(pBuffHeader->pPlatformPrivate))->bufSt = OWNED_BY_CLIENT;
                 /*Send the buffer*/

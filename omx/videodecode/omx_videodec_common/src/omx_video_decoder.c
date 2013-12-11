@@ -1034,7 +1034,8 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
         } else if( pVidDecComp->pDecDynParams->decodeHeader == pVidDecComp->nDecoderMode ) {
             pVidDecComp->pDecInArgs->numBytes = pVidDecComp->sCodecConfig.sBuffer->size;
             pVidDecComp->pDecInArgs->inputID = 1;
-            pInBufDescPtr->descs[0].buf = (XDAS_Int8*)H2P(pVidDecComp->sCodecConfig.sBuffer);
+            pVidDecComp->sCodecConfig.sBuffer->offset = sizeof(MemHeader);
+            pInBufDescPtr->descs[0].buf = (XDAS_Int8*)(pVidDecComp->sCodecConfig.sBuffer);
             pInBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
             pInBufDescPtr->descs[0].bufSize.bytes = pVidDecComp->sCodecConfig.sBuffer->size;
             pOutBufDescPtr->numBufs = 0;
@@ -1071,8 +1072,8 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             pVidDecComp->pDecInArgs->inputID = (OMX_S32) pOutBufHeader;
             if(((IVIDDEC3_Params *)(pVidDecComp->pDecStaticParams))->inputDataMode == IVIDEO_ENTIREFRAME ) {
                 /* Fill Input Buffer Descriptor */
-                P2H(pInBufHeader->pBuffer)->offset = pInBufHeader->nOffset;
-                pInBufDescPtr->descs[0].buf = (XDAS_Int8*)(pInBufHeader->pBuffer);
+                (((OMXBase_BufHdrPvtData*)pInBufHeader->pPlatformPrivate)->sMemHdr[0]).offset = pInBufHeader->nOffset;
+                pInBufDescPtr->descs[0].buf = (XDAS_Int8 *)&(((OMXBase_BufHdrPvtData*)pInBufHeader->pPlatformPrivate)->sMemHdr[0]);
                 pInBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
                 pInBufDescPtr->descs[0].bufSize.bytes = pInBufHeader->nFilledLen - pInBufHeader->nOffset;
             }
@@ -1084,20 +1085,27 @@ OMX_ERRORTYPE OMXVidDec_DataNotify(OMX_HANDLETYPE hComponent)
             if (pVidDecComp->sBase.pPorts[OMX_VIDDEC_OUTPUT_PORT]->sProps.eBufMemoryType == MEM_GRALLOC) {
                 pOutBufDescPtr->descs[0].bufSize.tileMem.width  = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth;
                 pOutBufDescPtr->descs[0].bufSize.tileMem.height = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight;
-                pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0].dma_buf_fd);
+                (((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0]).offset = 0;
+                pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)&(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0]);
                 pOutBufDescPtr->descs[0].memType = XDM_MEMTYPE_TILED8;
+                (((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[1]).offset = 0;
                 pOutBufDescPtr->descs[1].bufSize.tileMem.width =pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth;
                 pOutBufDescPtr->descs[1].bufSize.tileMem.height = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight / 2;
-                pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[1].dma_buf_fd);
+                pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)&(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[1]);
                 pOutBufDescPtr->descs[1].memType = XDM_MEMTYPE_TILED16;
             } else {
                 pOutBufDescPtr->descs[0].bufSize.bytes  = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth *
                                                           pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight;
-                pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0].dma_buf_fd);
+                pOutBufDescPtr->descs[0].buf = (XDAS_Int8 *)&(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0]);
                 pOutBufDescPtr->descs[0].memType = XDM_MEMTYPE_RAW;
+
+                memcpy(&(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[1]), &(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0]), sizeof(MemHeader));
+
+                (((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[1]).offset = pOutBufDescPtr->descs[0].bufSize.bytes;
+
                 pOutBufDescPtr->descs[1].bufSize.bytes = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth *
                                                          pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nHeight/2;
-                pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[0].dma_buf_fd);
+                pOutBufDescPtr->descs[1].buf = (XDAS_Int8 *)&(((OMXBase_BufHdrPvtData*)pOutBufHeader->pPlatformPrivate)->sMemHdr[1]);
                 pOutBufDescPtr->descs[1].memType = XDM_MEMTYPE_RAW;
                 nStride = pVidDecComp->t2DBufferAllocParams[OMX_VIDDEC_OUTPUT_PORT].nWidth;
             }
