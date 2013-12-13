@@ -65,6 +65,8 @@ char   *tComponentName[MAXCOMP][MAX_ROLES] =
       "video_decoder.h263",
       "video_decoder.mpeg2",
        NULL },
+    { "OMX.TI.DUCATI1.VIDEO.H264E",
+      "video_encoder.avc", NULL },
     /* terminate the table */
     { NULL, NULL },
 };
