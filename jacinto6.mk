@@ -23,7 +23,8 @@ PRODUCT_PACKAGES += \
     libOMX.TI.DUCATI1.VIDEO.DECODER \
     libosal \
     libipc \
-    libdce
+    libdce \
+    libOMX.TI.DUCATI1.VIDEO.H264E
 
 PRODUCT_VENDOR_KERNEL_HEADERS := hardware/ti/omap4xxx/kernel-headers
 
