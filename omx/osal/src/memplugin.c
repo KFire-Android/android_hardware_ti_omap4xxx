@@ -167,9 +167,12 @@ int memplugin_xlate(int alloc_fd, int* share_fd)
 
 void *memplugin_alloc_noheader(MemHeader *memHdr, int sz, int height, MemRegion region, int align, int flags)
 {
+    int32_t err = -1;
     int32_t map_fd;
     int32_t share_fd;
+    void *ptr;
     struct ion_allocation_data ion_data;
+    struct omap_ion_tiler_alloc_data tiler_buf;
     MemHeader *h = memHdr;
     if (!memHdr)
         return NULL;
@@ -191,8 +194,56 @@ void *memplugin_alloc_noheader(MemHeader *memHdr, int sz, int height, MemRegion 
         h->handle = (void*)ion_data.handle;
 
         return (h->ptr);
+        break;
 
-    break;
+    case MEM_TILER8_2D:
+    case MEM_TILER16_2D:
+        OSAL_Info("Allocation request for 8/16bit TILER2D\n");
+        tiler_buf.w = sz;
+        tiler_buf.h = height;
+        tiler_buf.fmt = (region == MEM_TILER8_2D) ? TILER_PIXEL_FMT_8BIT : TILER_PIXEL_FMT_16BIT;
+        tiler_buf.out_align = PAGE_SIZE;
+        tiler_buf.flags = 0;
+        tiler_buf.token = 0;
+
+        err = ion_alloc_tiler(ion_fd, tiler_buf.w, tiler_buf.h, tiler_buf.fmt, tiler_buf.flags,
+                                (struct ion_handle **)&(tiler_buf.handle), (size_t *)&(tiler_buf.stride));
+
+        if (err < 0 || !tiler_buf.handle) {
+            OSAL_ErrorTrace("ION TILER MEM ALLOC failed[%d]", err);
+            return NULL;
+        }
+
+        err = ion_map(ion_fd, tiler_buf.handle, tiler_buf.stride * tiler_buf.h,
+                        PROT_READ | PROT_WRITE,
+                        MAP_SHARED, 0, (unsigned char **)&ptr, &map_fd);
+
+        if (err || !ptr) {
+            OSAL_ErrorTrace("ION TILER MEM MAP failed[%d]", err);
+            ion_free(ion_fd, tiler_buf.handle);
+            return NULL;
+        }
+
+        err = ion_share(ion_fd, tiler_buf.handle, &share_fd);
+        if (err < 0 || share_fd < 0) {
+            OSAL_ErrorTrace("ION TILER MEM SHARE failed[%d]", err);
+            ion_free(ion_fd, tiler_buf.handle);
+            close(map_fd);
+            munmap(ptr, tiler_buf.stride * tiler_buf.h);
+            return NULL;
+        }
+
+        h->ptr = ptr;
+        h->size = tiler_buf.stride * tiler_buf.h;
+        h->dma_buf_fd = share_fd;
+        h->region = region;
+        h->offset = 0;
+        h->map_fd = map_fd;
+        h->handle = (void*)tiler_buf.handle;
+        return (h->ptr);
+
+        break;
+
     default:
         OSAL_ErrorTrace("Invalid memory type in ION mem alloc[%d]", region);
     }
@@ -202,6 +253,7 @@ void *memplugin_alloc_noheader(MemHeader *memHdr, int sz, int height, MemRegion 
 void memplugin_free_noheader(MemHeader *memHdr)
 {
     struct ion_allocation_data ion_data;
+    struct omap_ion_tiler_alloc_data tiler_buf;
     if (!memHdr)
         return;
 
@@ -211,9 +263,18 @@ void memplugin_free_noheader(MemHeader *memHdr)
         ion_data.handle = h->handle;
         memfree(&ion_data, h->map_fd, h->dma_buf_fd);
         munmap(h->ptr, h->size);
-    break;
+        break;
+
+    case MEM_TILER8_2D:
+    case MEM_TILER16_2D:
+        ion_free(ion_fd, h->handle);
+        close(h->map_fd);
+        close(h->dma_buf_fd);
+        munmap(h->ptr, h->size);
+        break;
+
     default:
-        OSAL_ErrorTrace("Invalid memory type in ION mem free[%d]", h->region);
+        OSAL_ErrorTrace("Invalid memory type in noheader mem free[%d]", h->region);
     }
     return;
 }
