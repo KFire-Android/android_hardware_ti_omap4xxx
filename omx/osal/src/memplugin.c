@@ -64,12 +64,16 @@ static void *memalloc(struct ion_allocation_data *ion_data, int32_t *map_fd, int
 
     if (err || !ptr) {
         OSAL_ErrorTrace("ION CARVEOUT MEM MAP failed[%d]", err);
+        ion_free(ion_fd, ion_data->handle);
         return NULL;
     }
 
     err = ion_share(ion_fd, ion_data->handle, share_fd);
     if (err || *share_fd < 0) {
         OSAL_ErrorTrace("ION CARVEOUT MEM SHARE failed[%d]", err);
+        ion_free(ion_fd, ion_data->handle);
+        close(map_fd);
+        munmap(ptr, ion_data->len);
         return NULL;
     }
 
