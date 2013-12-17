@@ -1284,6 +1284,24 @@ static OMX_ERRORTYPE OMXH264VE_CommandNotify(OMX_HANDLETYPE hComponent,
                     pH264VEComp->pCodecInBufferArray[i] = NULL;
                 }
 
+#ifdef TILER2D_INPUT
+                pH264VEComp->pCodecInBufferBackupArray = (OMXBase_BufHdrPvtData *)OSAL_Malloc(sizeof(OMXBase_BufHdrPvtData) *
+                                                        pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.nBufferCountActual);
+
+                OMX_CHECK(pH264VEComp->pCodecInBufferBackupArray != NULL, OMX_ErrorInsufficientResources);
+
+                for (i = 0; i < pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.nBufferCountActual; i++) {
+                    MemHeader *h = &(pH264VEComp->pCodecInBufferBackupArray[i].sMemHdr[0]);
+                    h->ptr = memplugin_alloc_noheader(h, pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth,
+                                                    pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight,
+                                                    MEM_TILER8_2D, 0 ,0);
+
+                    h = &(pH264VEComp->pCodecInBufferBackupArray[i].sMemHdr[1]);
+                    h->ptr = memplugin_alloc_noheader(h, pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth,
+                                                    pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight / 2,
+                                                    MEM_TILER16_2D, 0 ,0);
+                }
+#endif
             }
             /* Incase If the comp is moving to Idle from executing, return all the buffers back to the IL client*/
             else if(((tCurState == OMX_StateExecuting) && (tNewState == OMX_StateIdle)) ||
@@ -1311,6 +1329,19 @@ static OMX_ERRORTYPE OMXH264VE_CommandNotify(OMX_HANDLETYPE hComponent,
                     OSAL_Free(pH264VEComp->pCodecInBufferArray);
                 }
 
+#ifdef TILER2D_INPUT
+                for (i = 0; i < pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.nBufferCountActual; i++) {
+                    MemHeader *h = &(pH264VEComp->pCodecInBufferBackupArray[i].sMemHdr[0]);
+                    memplugin_free_noheader(h);
+
+                    h = &(pH264VEComp->pCodecInBufferBackupArray[i].sMemHdr[1]);
+                    memplugin_free_noheader(h);
+                }
+
+                if( pH264VEComp->pCodecInBufferBackupArray ) {
+                    OSAL_Free(pH264VEComp->pCodecInBufferBackupArray);
+                }
+#endif
                 OSAL_ObtainMutex(pH264VEComp->sBase.pMutex, OSAL_SUSPEND);
                 pH264VEComp->nCodecConfigSize = 0;
                 pH264VEComp->bAfterGenHeader  = OMX_FALSE;
@@ -1502,7 +1533,7 @@ static OMX_ERRORTYPE OMXH264VE_DataNotify(OMX_HANDLETYPE hComponent)
     OMXH264VidEncComp                 *pH264VEComp = NULL;
     OMX_COMPONENTTYPE                  *pComp = NULL;
     OMX_BUFFERHEADERTYPE               *pOutBufHeader = NULL;
-    OMX_U32                             nInMsgCount = 0, nOutMsgCount = 0, i;
+    OMX_U32                             nInMsgCount = 0, nOutMsgCount = 0, i, j;
     XDAS_Int32                          retval = 0;
     OMX_STATETYPE                       tCurState;
     PARAMS_UPDATE_STATUS                bLCallxDMSetParams;
@@ -1513,6 +1544,8 @@ static OMX_ERRORTYPE OMXH264VE_DataNotify(OMX_HANDLETYPE hComponent)
     OMX_BOOL    bLCallCodecProcess = OMX_FALSE;
     OMXBase_CodecConfigBuf                   AttrParams;
     OMX_BOOL                                 bLSendCodecConfig;
+    void *srcPtr = NULL, *dstPtr = NULL;
+    OMX_U32 step;
 
     /* Check the input parameters */
     OMX_CHECK(hComponent != NULL, OMX_ErrorBadParameter);
@@ -1645,6 +1678,7 @@ static OMX_ERRORTYPE OMXH264VE_DataNotify(OMX_HANDLETYPE hComponent)
                     /* Update the Input buffer details before the Codec Process call */
                     for( i = 0; i < pH264VEComp->pVedEncInBufs->numPlanes; i++ ) {
                         if( i == 0 ) {
+#ifndef TILER2D_INPUT
                             ((OMXBase_BufHdrPvtData *)(pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->pPlatformPrivate))->sMemHdr[0].offset = (pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->nOffset);
 
                             pH264VEComp->pVedEncInBufs->planeDesc[i].buf = (XDAS_Int8 *)&(((OMXBase_BufHdrPvtData *)(pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->pPlatformPrivate))->sMemHdr[0]);
@@ -1652,7 +1686,40 @@ static OMX_ERRORTYPE OMXH264VE_DataNotify(OMX_HANDLETYPE hComponent)
                             pH264VEComp->pVedEncInBufs->planeDesc[i].bufSize.bytes = (pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth) * (pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight);
 
                             pH264VEComp->pVedEncInBufs->planeDesc[i].memType = XDM_MEMTYPE_RAW;
+
+                            pH264VEComp->pVedEncInBufs->imagePitch[0] = pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth;
+#else
+
+                            /* TBD: In the current solution, the input buffers at the omx interface are still non-tiler buffers.
+                            * Hence copy the input buffers into TILER2D before passing them to encoder.
+                            * In the final solution, this memcpy will be removed */
+                            srcPtr =((OMXBase_BufHdrPvtData *)(pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->pPlatformPrivate))->sMemHdr[0].ptr;
+                            dstPtr = pH264VEComp->pCodecInBufferBackupArray[InBufferHdrIndex].sMemHdr[0].ptr;
+                            step = 4096;
+                            for (j = 0; j < pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight; j++) {
+                                memcpy(dstPtr + j * step,
+                                        srcPtr + j * pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth,
+                                        pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth);
+                            }
+
+                            pH264VEComp->pVedEncInBufs->planeDesc[i].memType = XDM_MEMTYPE_TILED8;
+
+                            pH264VEComp->pCodecInBufferBackupArray[InBufferHdrIndex].sMemHdr[0].offset =
+                                                    (pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->nOffset);
+
+                            pH264VEComp->pVedEncInBufs->planeDesc[i].buf =
+                                                    (XDAS_Int8 *)&(pH264VEComp->pCodecInBufferBackupArray[InBufferHdrIndex].sMemHdr[0]);
+
+                            pH264VEComp->pVedEncInBufs->planeDesc[i].bufSize.tileMem.width =
+                                                    (pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth);
+
+                            pH264VEComp->pVedEncInBufs->planeDesc[i].bufSize.tileMem.height =
+                                                    (pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight);
+
+                            pH264VEComp->pVedEncInBufs->imagePitch[0] = 4096;
+#endif
                         } else if( i == 1 ) {
+#ifndef TILER2D_INPUT
                             memcpy(&((OMXBase_BufHdrPvtData *)(pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->pPlatformPrivate))->sMemHdr[1], &((OMXBase_BufHdrPvtData *)(pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->pPlatformPrivate))->sMemHdr[0], sizeof(MemHeader));
 
                             ((OMXBase_BufHdrPvtData *)(pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->pPlatformPrivate))->sMemHdr[1].offset = ((pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nStride) * (pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight));
@@ -1663,6 +1730,33 @@ static OMX_ERRORTYPE OMXH264VE_DataNotify(OMX_HANDLETYPE hComponent)
 
                             pH264VEComp->pVedEncInBufs->planeDesc[i].memType = XDM_MEMTYPE_RAW;
 
+                            pH264VEComp->pVedEncInBufs->imagePitch[1] = pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth;
+
+#else
+                            srcPtr =((OMXBase_BufHdrPvtData *)(pH264VEComp->pCodecInBufferArray[InBufferHdrIndex]->pPlatformPrivate))->sMemHdr[0].ptr;
+                            dstPtr = pH264VEComp->pCodecInBufferBackupArray[InBufferHdrIndex].sMemHdr[1].ptr;
+                            for (j = 0; j < pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight / 2; j++) {
+                                memcpy(dstPtr + j * step,
+                                        srcPtr + (j + pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight) *
+                                                        pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth,
+                                        pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth);
+                            }
+
+                            pH264VEComp->pVedEncInBufs->planeDesc[i].memType = XDM_MEMTYPE_TILED16;
+
+                            pH264VEComp->pCodecInBufferBackupArray[InBufferHdrIndex].sMemHdr[1].offset = 0;
+
+                            pH264VEComp->pVedEncInBufs->planeDesc[i].buf =
+                                                    (XDAS_Int8 *)&(pH264VEComp->pCodecInBufferBackupArray[InBufferHdrIndex].sMemHdr[1]);
+
+                            pH264VEComp->pVedEncInBufs->planeDesc[i].bufSize.tileMem.width =
+                                                    (pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameWidth);
+
+                            pH264VEComp->pVedEncInBufs->planeDesc[i].bufSize.tileMem.height =
+                                                    (pH264VEComp->sBase.pPorts[OMX_H264VE_INPUT_PORT]->sPortDef.format.video.nFrameHeight/ 2);
+
+                            pH264VEComp->pVedEncInBufs->imagePitch[1] = 4096;
+#endif
                         } else {
                             eError = OMX_ErrorUnsupportedSetting;
                             OSAL_ErrorTrace("only NV12 is supproted currently; wrong param from Codec");

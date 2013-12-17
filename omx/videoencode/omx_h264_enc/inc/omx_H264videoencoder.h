@@ -21,6 +21,8 @@
 extern "C"   {
 #endif /* _cplusplus */
 
+//#define TILER2D_INPUT
+
 #include "omx_H264videoencoderutils.h"
 
 #define  OMX_VIDENC_NUM_PORTS     (2)
@@ -70,6 +72,10 @@ typedef struct OMXH264VideoEncoderComponent {
 
     /* internal buffer tracking arrays */
     OMX_BUFFERHEADERTYPE    **pCodecInBufferArray;
+#ifdef TILER2D_INPUT
+    OMXBase_BufHdrPvtData   *pCodecInBufferBackupArray;
+#endif
+
     /* temporary memory to meet and codec and dce requirements */
     MemHeader               *pTempBuffer[2];
 } OMXH264VidEncComp;
