@@ -34,10 +34,7 @@ bool is_valid_format(uint32_t format)
     case HAL_PIXEL_FORMAT_RGBA_8888:
     case HAL_PIXEL_FORMAT_BGRA_8888:
     case HAL_PIXEL_FORMAT_BGRX_8888:
-    /* Displaying 2D TILER buffers in NV12 format by DSS throws
-     * an OCP error. Disabling this format temporarily.
-     * case HAL_PIXEL_FORMAT_TI_NV12:
-     */
+    case HAL_PIXEL_FORMAT_TI_NV12:
     case HAL_PIXEL_FORMAT_TI_NV12_1D:
         return true;
 
