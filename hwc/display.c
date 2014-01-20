@@ -26,11 +26,11 @@
 
 #include <linux/fb.h>
 #include <video/dsscomp.h>
-#ifdef USE_LIBION_TI
-#include <ion_ti/ion.h>
-#else
-#include <ion.h>
-#endif
+//#ifdef USE_LIBION_TI
+#include <ion/ion.h>
+//#else
+//#include <ion.h>
+//#endif
 
 #include "hwc_dev.h"
 #include "color_fmt.h"
@@ -578,7 +578,9 @@ int init_primary_display(omap_hwc_device_t *hwc_dev)
     switch (fb_info.channel) {
         case OMAP_DSS_CHANNEL_LCD:
 	case OMAP_DSS_CHANNEL_LCD2:
+#if 0
 	case OMAP_DSS_CHANNEL_LCD3:
+#endif
 	    ALOGE("channel id %d",fb_info.channel);
             err = init_primary_lcd_display(hwc_dev, xres, yres, &fb_info);
             break;

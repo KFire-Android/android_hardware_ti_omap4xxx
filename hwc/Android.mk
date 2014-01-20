@@ -9,14 +9,14 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/../vendor/lib/hw
 LOCAL_SHARED_LIBRARIES := liblog libEGL libcutils libutils libhardware libhardware_legacy libz \
                           libedid libdsswbhal
 
-ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), omap4 omap5))
+# ifeq ($(TARGET_BOARD_PLATFORM), $(filter $(TARGET_BOARD_PLATFORM), omap4 omap5))
 LOCAL_SHARED_LIBRARIES += libion_ti
 LOCAL_CFLAGS += -DUSE_LIBION_TI
-else
-LOCAL_SHARED_LIBRARIES += libion
-LOCAL_CFLAGS += -DUSE_LIBION -DEARLYCAMERA_IPU
-LOCAL_C_INCLUDES += system/core/include/ion
-endif
+# else
+# LOCAL_SHARED_LIBRARIES += libion
+# LOCAL_CFLAGS += -DUSE_LIBION -DEARLYCAMERA_IPU
+# LOCAL_C_INCLUDES += system/core/include/ion
+# endif
 
 LOCAL_SRC_FILES := \
     blitter.c \
