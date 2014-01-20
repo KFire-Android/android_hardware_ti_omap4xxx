@@ -48,11 +48,11 @@
 #include <ui/GraphicBufferMapper.h>
 #include <hal_public.h>
 
-#ifdef USE_LIBION_TI
-#include <ion_ti/ion.h>
-#else
+//#ifdef USE_LIBION_TI
 #include <ion/ion.h>
-#endif
+//#else
+//#include <ion/ion.h>
+//#endif
 
 #include "Common.h"
 #include "MessageQueue.h"
